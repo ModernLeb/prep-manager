@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Restaurant Prep Manager</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Initial staff selection screen -->
+        <div id="staff-selection" class="staff-selection">
+            <h1 class="heading">Who are you?</h1>
+            <div class="staff-grid">
+                <button class="staff-button" data-staff="Alex">Alex</button>
+                <button class="staff-button" data-staff="Maria">Maria</button>
+                <button class="staff-button" data-staff="John">John</button>
+                <button class="staff-button" data-staff="Sarah">Sarah</button>
+                <button class="staff-button" data-staff="Miguel">Miguel</button>
+            </div>
+        </div>
+
+        <!-- Main app interface (hidden initially) -->
+        <div id="main-interface" class="app-container" style="display: none;">
+            <!-- Left panel - Navigation -->
+            <div class="nav-panel">
+                <div class="nav-title">Prep Manager</div>
+                
+                <div class="nav-buttons">
+                    <button class="nav-button active" data-section="dashboard">Dashboard</button>
+                    <button class="nav-button" data-section="inventory">Inventory</button>
+                    <button class="nav-button" data-section="history">History</button>
+                </div>
+                
+                <div class="user-info">
+                    <div class="user-label">Logged in as:</div>
+                    <div class="user-name" id="current-user"></div>
+                    <button class="switch-user-btn" id="switch-user">Switch User</button>
+                </div>
+            </div>
+            
+            <!-- Middle panel - Content -->
+            <div class="content-panel">
+                <!-- Dashboard section -->
+                <div class="content-section active" id="dashboard-section">
+                    <h1 class="section-title">Dashboard</h1>
+                    <div class="card">
+                        <h2 class="card-title">Current Status</h2>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-label">Total Prep Items</div>
+                                <div class="stat-value" id="total-items">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Items Needing Prep</div>
+                                <div class="stat-value" id="items-needed">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2 class="card-title">Start Prep Check</h2>
+                        <p class="card-desc">
+                            You will be prompted to check and update the level of each prep item.
+                        </p>
+                        <button class="action-button" id="start-check-btn">Start Prep Check</button>
+                    </div>
+                </div>
+                
+                <!-- Inventory section -->
+                <div class="content-section" id="inventory-section" style="display: none;">
+                    <h1 class="section-title">Inventory</h1>
+                    <div class="card">
+                        <table class="inventory-table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Current</th>
+                                    <th>Target</th>
+                                    <th>Last Checked</th>
+                                    <th>By</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-table-body">
+                                <!-- Inventory items will be inserted here by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- History section -->
+                <div class="content-section" id="history-section" style="display: none;">
+                    <h1 class="section-title">Activity History</h1>
+                    <div class="card">
+                        <p class="placeholder-text">
+                            This feature would show a log of all prep checks and updates.
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Prep check interface (hidden initially) -->
+                <div id="prep-check-interface" style="display: none;">
+                    <div class="card">
+                        <h1 class="section-title">Prep Check</h1>
+                        
+                        <div class="check-progress" id="check-progress">
+                            Item 1 of 5
+                        </div>
+                        
+                        <div class="check-item-name" id="check-item-name">
+                            Item Name
+                        </div>
+                        
+                        <div class="check-item-target" id="check-item-target">
+                            Target: 5 containers
+                        </div>
+                        
+                        <div class="input-group">
+                            <label class="input-label">Current level:</label>
+                            <input type="number" class="input-field" id="current-level-input" min="0" step="0.5">
+                        </div>
+                        
+                        <div class="button-group">
+                            <button class="action-button" id="save-next-btn">Save & Next</button>
+                            <button class="secondary-button" id="cancel-check-btn">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right panel - Prep to-do list -->
+            <div class="todo-panel">
+                <div class="todo-title">Prep To-Do List</div>
+                
+                <div id="todo-list-container">
+                    <!-- To-do items will be inserted here by JavaScript -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="script.js"></script>
+</body>
+</html>
