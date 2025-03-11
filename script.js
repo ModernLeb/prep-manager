@@ -834,18 +834,18 @@ function initModalSlider(initialValue) {
     }
     
     // Allow clicking/tapping anywhere on the slider track
-sliderContainer.addEventListener('click', function(event) {
-    if (event.target === handle) return;
-    
-    const containerRect = sliderContainer.getBoundingClientRect();
-    const percentage = (event.clientX - containerRect.left) / containerRect.width;
-    
-    // Find closest value
-    const valueIndex = Math.round(percentage * (modalValues.length - 1));
-    modalValue = modalValues[valueIndex];
-    
-    updateModalSlider();
-});
+    sliderContainer.addEventListener('click', function(event) {
+        if (event.target === handle) return;
+        
+        const containerRect = sliderContainer.getBoundingClientRect();
+        const percentage = (event.clientX - containerRect.left) / containerRect.width;
+        
+        // Find closest value
+        const valueIndex = Math.round(percentage * (modalValues.length - 1));
+        modalValue = modalValues[valueIndex];
+        
+        updateModalSlider();
+    });
     
     // Plus/minus buttons
     decreaseBtn.addEventListener('click', function() {
