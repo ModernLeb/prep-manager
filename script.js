@@ -12,7 +12,7 @@ try {
     console.error('Error loading auth from localStorage:', e);
 }
 
-// Google Sign-In callback
+// Replace your handleCredentialResponse function with this:
 function handleCredentialResponse(response) {
     console.log('Google Auth response received');
     
@@ -39,13 +39,52 @@ function handleCredentialResponse(response) {
         console.error('Error parsing auth token:', e);
     }
     
-    // Hide auth container and show the app
-    document.getElementById('google-auth-container').style.display = 'none';
-    document.getElementById('app').style.display = 'block';
+    // Check if the DOM elements exist before trying to modify them
+    const authContainer = document.getElementById('google-auth-container');
+    const appContainer = document.getElementById('app');
     
-    // Initialize the application now that we're authenticated
-    initApp();
+    if (authContainer && appContainer) {
+        // Hide auth container and show the app
+        authContainer.style.display = 'none';
+        appContainer.style.display = 'block';
+        
+        // Initialize the application now that we're authenticated
+        initApp();
+    } else {
+        console.error('DOM elements not found. Auth container or app container is missing.');
+        // Add a fallback to reload the page if elements aren't found
+        setTimeout(() => {
+            window.location.reload();
+        }, 500);
+    }
 }
+
+// And replace your DOMContentLoaded event listener with this:
+document.addEventListener('DOMContentLoaded', function() {
+    // Get references to necessary DOM elements
+    const authContainer = document.getElementById('google-auth-container');
+    const appContainer = document.getElementById('app');
+    
+    // Ensure the elements exist before proceeding
+    if (!authContainer || !appContainer) {
+        console.error('Required DOM elements not found!');
+        return;
+    }
+    
+    // Check if we already have auth
+    if (googleAuthToken) {
+        // Already authenticated, hide auth container and initialize
+        authContainer.style.display = 'none';
+        appContainer.style.display = 'block';
+        
+        // Initialize the application now that we're authenticated
+        initApp();
+    } else {
+        // Need authentication, hide app and show auth container
+        appContainer.style.display = 'none';
+        authContainer.style.display = 'flex';
+    }
+});
 
 // Sample initial data
 const initialPrepItems = [
