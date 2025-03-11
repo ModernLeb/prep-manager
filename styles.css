@@ -440,39 +440,3 @@ body {
     color: #666;
     top: 15px;
 }
-
-/* Add this to your CSS file (styles.css) */
-.recently-checked {
-    background-color: rgba(144, 238, 144, 0.2); /* Light green background */
-    transition: background-color 0.5s ease;
-}
-
-/* Optional: Add a header style to make it clear the table is sorted by time */
-.inventory-table th.sorted-by {
-    position: relative;
-}
-
-.inventory-table th.sorted-by::after {
-    content: "↓";
-    position: absolute;
-    right: 8px;
-    color: #2563eb;
-}
-
-/* Google Auth Container Styles */
-.google-auth-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    padding: 20px;
-    background-color: #f3f4f6;
-}
-
-.auth-desc {
-    margin: 20px 0;
-    text-align: center;
-    color: #374151;
-    font-size: 16px;
-}
