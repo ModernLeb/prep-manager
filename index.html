@@ -3,210 +3,460 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Restaurant Prep Tracker - Simple</title>
+    <title>Restaurant Prep Manager</title>
+    <link rel="stylesheet" href="styles.css">
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        }
-        
-        body {
-            background-color: #f3f4f6;
-            padding: 20px;
-        }
-        
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
-            background-color: white;
-            padding: 20px;
+        /* Touch-friendly numeric input styles */
+        .touch-input-container {
+            width: 100%;
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #f5f5f5;
             border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
         }
         
-        h1 {
-            margin-bottom: 20px;
+        .value-display {
+            text-align: center;
+            font-size: 28px;
+            font-weight: bold;
+            margin: 15px 0;
             color: #333;
         }
         
-        .staff-selection {
-            margin-bottom: 30px;
-        }
-        
-        .staff-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 1fr);
-            gap: 10px;
-            margin-top: 15px;
-        }
-        
-        .staff-button {
-            background-color: #3b82f6;
-            color: white;
-            padding: 12px;
-            border: none;
-            border-radius: 5px;
-            font-size: 16px;
-            cursor: pointer;
-        }
-        
-        .staff-button:hover {
-            background-color: #2563eb;
-        }
-        
-        .prep-list {
-            margin-top: 20px;
-        }
-        
-        .prep-item {
-            background-color: #f9fafb;
-            padding: 15px;
-            border-radius: 5px;
-            margin-bottom: 10px;
-            border-left: 4px solid #3b82f6;
-        }
-        
-        .prep-item.low {
-            border-left-color: #f59e0b;
-        }
-        
-        .prep-item.urgent {
-            border-left-color: #ef4444;
-        }
-        
-        .prep-name {
-            font-weight: bold;
-            margin-bottom: 5px;
-        }
-        
-        .prep-details {
+        .control-row {
             display: flex;
+            align-items: center;
             justify-content: space-between;
-            color: #6b7280;
-            font-size: 14px;
+            margin-bottom: 20px;
         }
         
-        .hidden {
-            display: none;
+        .control-button {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: #2c3e50;
+            color: white;
+            font-size: 22px;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .slider-container {
+            position: relative;
+            width: 100%;
+            height: 50px;
+            margin: 20px 0;
+        }
+        
+        .slider-track {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 100%;
+            height: 8px;
+            background-color: #ddd;
+            border-radius: 4px;
+        }
+        
+        .slider-progress {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 8px;
+            background-color: #2c3e50;
+            border-radius: 4px;
+        }
+        
+        .slider-handle {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 36px;
+            height: 36px;
+            background-color: #2c3e50;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .tick-marks {
+            position: absolute;
+            width: 100%;
+            height: 30px;
+            bottom: -30px;
+        }
+        
+        .tick {
+            position: absolute;
+            height: 10px;
+            width: 2px;
+            background-color: #999;
+            transform: translateX(-50%);
+        }
+        
+        .tick.major {
+            height: 15px;
+            width: 2px;
+            background-color: #666;
+        }
+        
+        .tick-label {
+            position: absolute;
+            transform: translateX(-50%);
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+            top: 15px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Restaurant Prep Tracker</h1>
-        
-        <!-- Staff Selection -->
+    <div id="app">
+        <!-- Initial staff selection screen -->
         <div id="staff-selection" class="staff-selection">
-            <h2>Select Your Name</h2>
+            <h1 class="heading">Who are you?</h1>
             <div class="staff-grid">
-                <button class="staff-button" data-staff="Alex">Alex</button>
-                <button class="staff-button" data-staff="Maria">Maria</button>
-                <button class="staff-button" data-staff="John">John</button>
-                <button class="staff-button" data-staff="Lisa">Lisa</button>
+                <button class="staff-button" data-staff="Serge Men">Serge Men</button>
+                <button class="staff-button" data-staff="Tatiana">Tatiana</button>
+                <button class="staff-button" data-staff="Nadine">Nadine</button>
+                <button class="staff-button" data-staff="Nicolas">Nicolas</button>
+                <button class="staff-button" data-staff="Omar">Omar</button>
             </div>
         </div>
-        
-        <!-- Main App -->
-        <div id="main-app" class="hidden">
-            <div id="user-info">
-                Currently logged in as: <strong id="current-user">Not Selected</strong>
-                <button id="switch-user" style="margin-left: 10px; background: none; border: none; color: blue; cursor: pointer;">Switch User</button>
+
+        <!-- Main app interface (hidden initially) -->
+        <div id="main-interface" class="app-container" style="display: none;">
+            <!-- Left panel - Navigation -->
+            <div class="nav-panel">
+                <div class="nav-title">Prep Manager</div>
+                
+                <div class="nav-buttons">
+                    <button class="nav-button active" data-section="dashboard">Dashboard</button>
+                    <button class="nav-button" data-section="inventory">Inventory</button>
+                    <button class="nav-button" data-section="history">History</button>
+                </div>
+                
+                <div class="user-info">
+                    <div class="user-label">Logged in as:</div>
+                    <div class="user-name" id="current-user"></div>
+                    <button class="switch-user-btn" id="switch-user">Switch User</button>
+                </div>
             </div>
             
-            <div class="prep-list">
-                <h2>Prep Items</h2>
-                <div id="prep-items-container">
-                    <!-- Items will be inserted here by JavaScript -->
+            <!-- Middle panel - Content -->
+            <div class="content-panel">
+                <!-- Dashboard section -->
+                <div class="content-section active" id="dashboard-section">
+                    <h1 class="section-title">Dashboard</h1>
+                    <div class="card">
+                        <h2 class="card-title">Current Status</h2>
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-label">Total Prep Items</div>
+                                <div class="stat-value" id="total-items">0</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-label">Items Needing Prep</div>
+                                <div class="stat-value" id="items-needed">0</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <h2 class="card-title">Start Prep Check</h2>
+                        <p class="card-desc">
+                            You will be prompted to check and update the level of each prep item.
+                        </p>
+                        <button class="action-button" id="start-check-btn">Start Prep Check</button>
+                    </div>
+                </div>
+                
+                <!-- Inventory section -->
+                <div class="content-section" id="inventory-section" style="display: none;">
+                    <h1 class="section-title">Inventory</h1>
+                    <div class="card">
+                        <table class="inventory-table">
+                            <thead>
+                                <tr>
+                                    <th>Item</th>
+                                    <th>Current</th>
+                                    <th>Target</th>
+                                    <th class="sorted-by">Last Checked</th>
+                                    <th>By</th>
+                                </tr>
+                            </thead>
+                            <tbody id="inventory-table-body">
+                                <!-- Inventory items will be inserted here by JavaScript -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <!-- History section -->
+                <div class="content-section" id="history-section" style="display: none;">
+                    <h1 class="section-title">Activity History</h1>
+                    <div class="card">
+                        <p class="placeholder-text">
+                            This feature would show a log of all prep checks and updates.
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Prep check interface (hidden initially) -->
+                <div id="prep-check-interface" style="display: none;">
+                    <div class="card">
+                        <h1 class="section-title">Prep Check</h1>
+                        
+                        <div class="check-progress" id="check-progress">
+                            Item 1 of 5
+                        </div>
+                        
+                        <div class="check-item-name" id="check-item-name">
+                            Item Name
+                        </div>
+                        
+                        <div class="check-item-target" id="check-item-target">
+                            Target: 5 containers
+                        </div>
+                        
+                        <!-- Replace standard input with touch-friendly input -->
+                        <div class="input-group">
+                            <label class="input-label">Current level:</label>
+                            <!-- Hidden input to store the value (for form submission compatibility) -->
+                            <input type="hidden" id="current-level-input">
+                            
+                            <!-- Touch-friendly numeric input -->
+                            <div class="touch-input-container">
+                                <div class="value-display">
+                                    <span id="current-value">0</span>
+                                </div>
+                                
+                                <div class="control-row">
+                                    <button class="control-button" id="decrease">-</button>
+                                    <button class="control-button" id="increase">+</button>
+                                </div>
+                                
+                                <div class="slider-container">
+                                    <div class="slider-track"></div>
+                                    <div class="slider-progress" id="progress"></div>
+                                    <div class="slider-handle" id="handle"></div>
+                                    <div class="tick-marks" id="ticks"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="button-group">
+                            <button class="action-button" id="save-next-btn">Save & Next</button>
+                            <button class="secondary-button" id="cancel-check-btn">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right panel - Prep to-do list -->
+            <div class="todo-panel">
+                <div class="todo-title">Prep To-Do List</div>
+                
+                <div id="todo-list-container">
+                    <!-- To-do items will be inserted here by JavaScript -->
                 </div>
             </div>
         </div>
     </div>
     
+    <script src="script.js"></script>
     <script>
-        // Sample data
-        const prepItems = [
-            { id: 1, name: 'Chopped Onions', currentLevel: 2, targetLevel: 5, unit: 'containers' },
-            { id: 2, name: 'Sliced Tomatoes', currentLevel: 1, targetLevel: 4, unit: 'containers' },
-            { id: 3, name: 'Diced Chicken', currentLevel: 0, targetLevel: 3, unit: 'kg' },
-            { id: 4, name: 'Mixed Salad', currentLevel: 3, targetLevel: 4, unit: 'kg' },
-            { id: 5, name: 'Sauce Base', currentLevel: 1, targetLevel: 5, unit: 'liters' }
-        ];
-        
-        // State
-        let currentStaff = '';
-        
-        // DOM Elements
-        const staffSelection = document.getElementById('staff-selection');
-        const mainApp = document.getElementById('main-app');
-        const currentUserElement = document.getElementById('current-user');
-        const switchUserButton = document.getElementById('switch-user');
-        const prepItemsContainer = document.getElementById('prep-items-container');
-        const staffButtons = document.querySelectorAll('.staff-button');
-        
-        // Initialize
-        function init() {
-            // Set up event listeners
-            staffButtons.forEach(button => {
-                button.addEventListener('click', () => {
-                    currentStaff = button.getAttribute('data-staff');
-                    showMainApp();
+        // Touch-friendly numeric input script
+        document.addEventListener('DOMContentLoaded', function() {
+            // This code will run after the main script.js is loaded
+            // DOM elements
+            const currentValue = document.getElementById('current-value');
+            const decreaseBtn = document.getElementById('decrease');
+            const increaseBtn = document.getElementById('increase');
+            const handle = document.getElementById('handle');
+            const progress = document.getElementById('progress');
+            const sliderContainer = document.querySelector('.slider-container');
+            const ticksContainer = document.getElementById('ticks');
+            const hiddenInput = document.getElementById('current-level-input');
+            
+            // Only initialize if we have the elements (they'll exist when prep check is visible)
+            if(!currentValue || !sliderContainer) return;
+            
+            // Define value range and increments
+            const minValue = 0;
+            const maxValue = 20;
+            let value = 0;
+            
+            // Generate values array with the right increments
+            const values = [];
+            for (let i = 0; i <= 12; i++) {
+                values.push(i * 0.25); // 0 to 3 in 0.25 increments
+            }
+            for (let i = 4; i <= 20; i++) {
+                values.push(i); // 4 to 20 in increments of 1
+            }
+            
+            // Initialize slider
+            function updateSlider() {
+                const valueIndex = values.indexOf(value);
+                const percentage = valueIndex / (values.length - 1) * 100;
+                handle.style.left = `${percentage}%`;
+                progress.style.width = `${percentage}%`;
+                
+                // Format display value (show 2 decimal places for values < 3)
+                currentValue.textContent = value < 3 ? value.toFixed(2) : value.toFixed(0);
+                
+                // Update the hidden input for form submission
+                hiddenInput.value = value;
+                
+                // Trigger change event on hidden input for any listeners
+                const event = new Event('change');
+                hiddenInput.dispatchEvent(event);
+            }
+            
+            // Create tick marks
+            function createTicks() {
+                // Clear existing ticks first
+                ticksContainer.innerHTML = '';
+                
+                values.forEach((val, index) => {
+                    const percentage = index / (values.length - 1) * 100;
+                    const tick = document.createElement('div');
+                    tick.className = 'tick';
+                    if (val % 1 === 0) tick.className += ' major';
+                    tick.style.left = `${percentage}%`;
+                    ticksContainer.appendChild(tick);
+                    
+                    // Add labels for whole numbers (but not for every number to avoid crowding)
+                    if (val % 1 === 0 && (val <= 3 || val % 2 === 0)) {
+                        const label = document.createElement('div');
+                        label.className = 'tick-label';
+                        label.textContent = val;
+                        label.style.left = `${percentage}%`;
+                        ticksContainer.appendChild(label);
+                    }
+                });
+            }
+            
+            // Handle slider interaction
+            let isDragging = false;
+            
+            function handleMove(event) {
+                if (!isDragging) return;
+                
+                // Get pointer position
+                const containerRect = sliderContainer.getBoundingClientRect();
+                const clientX = event.type.includes('touch') ? 
+                    event.touches[0].clientX : event.clientX;
+                let percentage = (clientX - containerRect.left) / containerRect.width;
+                
+                // Clamp percentage
+                percentage = Math.max(0, Math.min(percentage, 1));
+                
+                // Find closest value
+                const valueIndex = Math.round(percentage * (values.length - 1));
+                value = values[valueIndex];
+                
+                updateSlider();
+                event.preventDefault();
+            }
+            
+            // Initialize and add event listeners when prep check interface is shown
+            function initTouchInput() {
+                // Check if already initialized
+                if (ticksContainer.children.length > 0) return;
+                
+                createTicks();
+                
+                // Touch and mouse events for slider
+                handle.addEventListener('mousedown', () => isDragging = true);
+                handle.addEventListener('touchstart', () => isDragging = true);
+                
+                document.addEventListener('mousemove', handleMove);
+                document.addEventListener('touchmove', handleMove, { passive: false });
+                
+                document.addEventListener('mouseup', () => isDragging = false);
+                document.addEventListener('touchend', () => isDragging = false);
+                
+                // Allow clicking/tapping anywhere on the slider track
+                sliderContainer.addEventListener('click', function(event) {
+                    if (event.target === handle) return;
+                    
+                    const containerRect = sliderContainer.getBoundingClientRect();
+                    const percentage = (event.clientX - containerRect.left) / containerRect.width;
+                    
+                    // Find closest value
+                    const valueIndex = Math.round(percentage * (values.length - 1));
+                    value = values[valueIndex];
+                    
+                    updateSlider();
+                });
+                
+                // Plus/minus buttons
+                decreaseBtn.addEventListener('click', function() {
+                    const currentIndex = values.indexOf(value);
+                    if (currentIndex > 0) {
+                        value = values[currentIndex - 1];
+                        updateSlider();
+                    }
+                });
+                
+                increaseBtn.addEventListener('click', function() {
+                    const currentIndex = values.indexOf(value);
+                    if (currentIndex < values.length - 1) {
+                        value = values[currentIndex + 1];
+                        updateSlider();
+                    }
+                });
+                
+                // Initialize with value 0
+                value = 0;
+                updateSlider();
+            }
+            
+            // Monitor for the prep check interface becoming visible
+            const prepCheckInterface = document.getElementById('prep-check-interface');
+            
+            // Create a MutationObserver to watch for style changes
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.attributeName === 'style' && 
+                        prepCheckInterface.style.display !== 'none') {
+                        // Initialize touch input when prep check interface becomes visible
+                        initTouchInput();
+                    }
                 });
             });
             
-            switchUserButton.addEventListener('click', showStaffSelection);
+            // Start observing
+            observer.observe(prepCheckInterface, { attributes: true });
             
-            // Render initial prep items
-            renderPrepItems();
-        }
-        
-        // Show main app
-        function showMainApp() {
-            staffSelection.classList.add('hidden');
-            mainApp.classList.remove('hidden');
-            currentUserElement.textContent = currentStaff;
-        }
-        
-        // Show staff selection
-        function showStaffSelection() {
-            mainApp.classList.add('hidden');
-            staffSelection.classList.remove('hidden');
-        }
-        
-        // Render prep items
-        function renderPrepItems() {
-            prepItemsContainer.innerHTML = '';
+            // If the prep check interface is already visible, initialize right away
+            if (prepCheckInterface.style.display !== 'none') {
+                initTouchInput();
+            }
             
-            prepItems.forEach(item => {
-                const itemElement = document.createElement('div');
-                
-                // Determine status (normal, low, urgent)
-                let status = 'normal';
-                const percentage = item.currentLevel / item.targetLevel;
-                
-                if (percentage === 0) {
-                    status = 'urgent';
-                } else if (percentage < 0.5) {
-                    status = 'low';
-                }
-                
-                itemElement.className = `prep-item ${status}`;
-                
-                itemElement.innerHTML = `
-                    <div class="prep-name">${item.name}</div>
-                    <div class="prep-details">
-                        <span>Current: ${item.currentLevel} ${item.unit}</span>
-                        <span>Target: ${item.targetLevel} ${item.unit}</span>
-                    </div>
-                `;
-                
-                prepItemsContainer.appendChild(itemElement);
-            });
-        }
-        
-        // Initialize on page load
-        document.addEventListener('DOMContentLoaded', init);
+            // Hook into the original app's start check button
+            const startCheckBtn = document.getElementById('start-check-btn');
+            if (startCheckBtn) {
+                // Add our initialization after the original click handler
+                const originalClick = startCheckBtn.onclick;
+                startCheckBtn.onclick = function(e) {
+                    if (originalClick) originalClick.call(this, e);
+                    
+                    // Initialize our touch input with a slight delay to ensure
+                    // the interface is visible
+                    setTimeout(initTouchInput, 100);
+                };
+            }
+        });
     </script>
 </body>
 </html>
