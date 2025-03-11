@@ -1,3 +1,52 @@
+// Add these at the top of your script.js file
+let googleAuthToken = '';
+let googleUser = null;
+
+// Initialize auth state from localStorage if available
+try {
+    const savedAuth = localStorage.getItem('googleAuthToken');
+    if (savedAuth) {
+        googleAuthToken = savedAuth;
+    }
+} catch (e) {
+    console.error('Error loading auth from localStorage:', e);
+}
+
+// Google Sign-In callback
+function handleCredentialResponse(response) {
+    console.log('Google Auth response received');
+    
+    // Store the credential
+    googleAuthToken = response.credential;
+    
+    // Save to localStorage for persistence
+    try {
+        localStorage.setItem('googleAuthToken', googleAuthToken);
+    } catch (e) {
+        console.error('Error saving auth to localStorage:', e);
+    }
+    
+    // Parse the JWT to get user info
+    try {
+        const payload = JSON.parse(atob(googleAuthToken.split('.')[1]));
+        googleUser = {
+            name: payload.name,
+            email: payload.email,
+            picture: payload.picture
+        };
+        console.log('Authenticated as:', googleUser.name);
+    } catch (e) {
+        console.error('Error parsing auth token:', e);
+    }
+    
+    // Hide auth container and show the app
+    document.getElementById('google-auth-container').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    
+    // Initialize the application now that we're authenticated
+    initApp();
+}
+
 // Sample initial data
 const initialPrepItems = [
     { id: 1, name: 'Chopped Onions', currentLevel: 2, targetLevel: 5, unit: 'containers', lastCheckedBy: 'Alex', lastCheckedTime: '2025-03-09 08:30' },
@@ -35,13 +84,26 @@ const API_KEY = 'AIzaSyBff8Mi1zi4-r7oWmExc-zk1JeI4IDtmQs';
 const SHEET_NAME = 'Sheet1'; // Replace if your sheet name is different
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxqkQu0MyDffc4otvyjfRVEEYOKY0sQguoNxVy70OuccvvvTS0KXLC95uK6stP1agJQ/exec';
 
-// Modified loadDataFromSheet function that returns a Promise
+// Modified loadDataFromSheet function to use auth token
 function loadDataFromSheet() {
     return new Promise((resolve, reject) => {
         console.log('Starting to load data from Google Sheets...');
+        
+        // Check if we have auth
+        if (!googleAuthToken) {
+            console.error('No authentication token available');
+            reject(new Error('Authentication required'));
+            return;
+        }
+        
         const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`;
         
-        fetch(url)
+        // Set up headers with authentication
+        const headers = {
+            'Authorization': `Bearer ${googleAuthToken}`
+        };
+        
+        fetch(url, { headers })
             .then(response => {
                 console.log('Response status:', response.status);
                 if (!response.ok) {
@@ -95,9 +157,16 @@ function loadDataFromSheet() {
     });
 }
 
-// Function to save data to Google Sheet using iframe form submission
+// Updated saveToGoogleSheet function to use auth token
 function saveToGoogleSheet() {
     console.log('Saving data to Google Sheet...');
+    
+    // Check if we have auth
+    if (!googleAuthToken) {
+        console.error('No authentication token available');
+        alert('Authentication required to save data. Please sign in again.');
+        return;
+    }
     
     // Display a message to the user
     const saveMessage = document.createElement('div');
@@ -134,6 +203,13 @@ function saveToGoogleSheet() {
     input.name = 'data';
     input.value = JSON.stringify(prepItems);
     form.appendChild(input);
+    
+    // Add the auth token as a hidden input
+    const authInput = document.createElement('input');
+    authInput.type = 'hidden';
+    authInput.name = 'auth';
+    authInput.value = googleAuthToken;
+    form.appendChild(authInput);
     
     // Add the form to the document
     document.body.appendChild(form);
@@ -723,6 +799,7 @@ function initModalSlider(initialValue) {
         if (event.target === handle) return;
         
         const containerRect = sliderContainer.getBoundingClientRect();
+        const percentage = (event.clientconst containerRect = sliderContainer.getBoundingClientRect();
         const percentage = (event.clientX - containerRect.left) / containerRect.width;
         
         // Find closest value
@@ -879,9 +956,6 @@ function hideLoadingState() {
         loadingMessage.remove();
     }
 }
-
-// Initialize the app when page loads
-document.addEventListener('DOMContentLoaded', initApp);
 
 // Touch-friendly numeric input functionality
 let sliderValues = [];
@@ -1064,3 +1138,18 @@ function increaseValue() {
         updateSliderValue(sliderValues[currentIndex + 1]);
     }
 }
+
+// Replace your existing DOMContentLoaded event listener with this:
+document.addEventListener('DOMContentLoaded', function() {
+    // Check if we already have auth
+    if (googleAuthToken) {
+        // Already authenticated, hide auth container and initialize
+        document.getElementById('google-auth-container').style.display = 'none';
+        document.getElementById('app').style.display = 'block';
+        initApp();
+    } else {
+        // Need authentication, hide app and show auth container
+        document.getElementById('app').style.display = 'none';
+        document.getElementById('google-auth-container').style.display = 'flex';
+    }
+});
