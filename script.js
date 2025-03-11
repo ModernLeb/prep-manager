@@ -218,21 +218,15 @@ function initApp() {
     // Load data from Google Sheets
     loadDataFromSheet();
     
-    // Add CSS for quick update button
+    // Add CSS for clickable todo items
     const style = document.createElement('style');
     style.textContent = `
-        .quick-update-btn {
-            background-color: #3498db;
-            color: white;
-            border: none;
-            padding: 5px 10px;
-            border-radius: 3px;
+        .todo-item {
             cursor: pointer;
-            margin-top: 10px;
-            transition: background-color 0.3s;
+            transition: background-color 0.2s;
         }
-        .quick-update-btn:hover {
-            background-color: #2980b9;
+        .todo-item:active {
+            background-color: #f5f5f5;
         }
     `;
     document.head.appendChild(style);
@@ -265,14 +259,103 @@ function switchSection(sectionId, buttonElement) {
         section.style.display = 'none';
     });
     document.getElementById(`${sectionId}-section`).style.display = 'block';
+    
+    // Refresh data when switching to specific sections
+    if (sectionId === 'inventory') {
+        updateInventoryTable();
+    } else if (sectionId === 'dashboard') {
+        updateStats();
+        updateTodoList();
+    }
 }
 
-// Update inventory table
+// Update inventory table with more robust time-based sorting
 function updateInventoryTable() {
     inventoryTableBody.innerHTML = '';
     
-    prepItems.forEach(item => {
+    // Create a copy of the prepItems array to avoid modifying the original
+    const sortedItems = [...prepItems];
+    
+    // Log the items before sorting for debugging
+    console.log('Items before sorting:', sortedItems.map(item => ({
+        name: item.name,
+        lastCheckedTime: item.lastCheckedTime
+    })));
+    
+    // Sort items by lastCheckedTime (most recent first) with robust date parsing
+    sortedItems.sort((a, b) => {
+        // Try to parse dates in various formats
+        let dateA, dateB;
+        
+        try {
+            // First try direct Date constructor
+            dateA = new Date(a.lastCheckedTime);
+            dateB = new Date(b.lastCheckedTime);
+            
+            // Check if dates are valid
+            if (isNaN(dateA.getTime()) || isNaN(dateB.getTime())) {
+                throw new Error('Invalid date');
+            }
+        } catch (e) {
+            // Fallback: try to parse manually (assuming format: YYYY-MM-DD HH:MM or similar)
+            try {
+                const partsA = a.lastCheckedTime.split(/[- :]/);
+                const partsB = b.lastCheckedTime.split(/[- :]/);
+                
+                dateA = new Date(
+                    parseInt(partsA[0]), 
+                    parseInt(partsA[1]) - 1, 
+                    parseInt(partsA[2]), 
+                    parseInt(partsA[3] || 0), 
+                    parseInt(partsA[4] || 0)
+                );
+                
+                dateB = new Date(
+                    parseInt(partsB[0]), 
+                    parseInt(partsB[1]) - 1, 
+                    parseInt(partsB[2]), 
+                    parseInt(partsB[3] || 0), 
+                    parseInt(partsB[4] || 0)
+                );
+            } catch (err) {
+                // If all parsing fails, use string comparison as last resort
+                return b.lastCheckedTime.localeCompare(a.lastCheckedTime);
+            }
+        }
+        
+        // Sort in descending order (most recent first)
+        return dateB - dateA;
+    });
+    
+    // Log the items after sorting for debugging
+    console.log('Items after sorting:', sortedItems.map(item => ({
+        name: item.name,
+        lastCheckedTime: item.lastCheckedTime
+    })));
+    
+    // Create table rows for each item
+    sortedItems.forEach(item => {
         const row = document.createElement('tr');
+        
+        // Calculate how recent the check was
+        let isRecent = false;
+        try {
+            const checkDate = new Date(item.lastCheckedTime);
+            const now = new Date();
+            const diffTime = Math.abs(now - checkDate);
+            const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+            
+            // Add highlight class for recently checked items (within the last day)
+            isRecent = (diffDays < 1);
+        } catch (e) {
+            // If date parsing fails, don't highlight
+            console.log('Date parsing failed for', item.name, item.lastCheckedTime);
+        }
+        
+        if (isRecent) {
+            row.classList.add('recently-checked');
+        }
+        
         row.innerHTML = `
             <td>${item.name}</td>
             <td>${item.currentLevel} ${item.unit}</td>
@@ -280,6 +363,7 @@ function updateInventoryTable() {
             <td>${item.lastCheckedTime}</td>
             <td>${item.lastCheckedBy}</td>
         `;
+        
         inventoryTableBody.appendChild(row);
     });
 }
@@ -308,12 +392,10 @@ function updateTodoList() {
             <div class="todo-tag ${item.currentLevel === 0 ? 'urgent' : 'low'}">
                 ${item.currentLevel === 0 ? 'Urgent' : 'Low'}
             </div>
-            <button class="quick-update-btn">Update</button>
         `;
         
-        // Add click event to the Update button
-        const updateBtn = todoItem.querySelector('.quick-update-btn');
-        updateBtn.addEventListener('click', () => {
+        // Make the entire card clickable
+        todoItem.addEventListener('click', () => {
             showQuickUpdateModal(item);
         });
         
@@ -321,7 +403,7 @@ function updateTodoList() {
     });
 }
 
-// New function to show a quick update modal
+// New function to show a quick update modal with slider
 function showQuickUpdateModal(item) {
     // Create modal backdrop
     const modalBackdrop = document.createElement('div');
@@ -343,8 +425,8 @@ function showQuickUpdateModal(item) {
     modalContent.style.backgroundColor = 'white';
     modalContent.style.padding = '20px';
     modalContent.style.borderRadius = '5px';
-    modalContent.style.width = '80%';
-    modalContent.style.maxWidth = '400px';
+    modalContent.style.width = '90%';
+    modalContent.style.maxWidth = '450px';
     
     // Create modal header
     const modalHeader = document.createElement('div');
@@ -354,7 +436,7 @@ function showQuickUpdateModal(item) {
         <p style="margin: 5px 0;">Current: ${item.currentLevel} ${item.unit} | Target: ${item.targetLevel} ${item.unit}</p>
     `;
     
-    // Create input group
+    // Create input group with hidden input
     const inputGroup = document.createElement('div');
     inputGroup.style.marginBottom = '15px';
     
@@ -364,37 +446,56 @@ function showQuickUpdateModal(item) {
     label.style.marginBottom = '5px';
     label.style.fontWeight = 'bold';
     
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.min = '0';
-    input.step = '0.5';
-    input.value = item.currentLevel;
-    input.style.width = '100%';
-    input.style.padding = '8px';
-    input.style.boxSizing = 'border-box';
-    input.style.border = '1px solid #ddd';
-    input.style.borderRadius = '4px';
+    // Hidden input to store the value
+    const hiddenInput = document.createElement('input');
+    hiddenInput.type = 'hidden';
+    hiddenInput.id = 'modal-current-level';
+    hiddenInput.value = item.currentLevel;
+    
+    // Create touch-friendly slider control
+    const touchInput = document.createElement('div');
+    touchInput.className = 'touch-input-container';
+    touchInput.innerHTML = `
+        <div class="value-display">
+            <span id="modal-current-value">${item.currentLevel}</span>
+        </div>
+        
+        <div class="control-row">
+            <button class="control-button" id="modal-decrease">-</button>
+            <button class="control-button" id="modal-increase">+</button>
+        </div>
+        
+        <div class="slider-container">
+            <div class="slider-track"></div>
+            <div class="slider-progress" id="modal-progress"></div>
+            <div class="slider-handle" id="modal-handle"></div>
+            <div class="tick-marks" id="modal-ticks"></div>
+        </div>
+    `;
     
     inputGroup.appendChild(label);
-    inputGroup.appendChild(input);
+    inputGroup.appendChild(hiddenInput);
+    inputGroup.appendChild(touchInput);
     
     // Create buttons
     const buttonGroup = document.createElement('div');
     buttonGroup.style.display = 'flex';
     buttonGroup.style.justifyContent = 'space-between';
+    buttonGroup.style.marginTop = '20px';
     
     const saveButton = document.createElement('button');
     saveButton.textContent = 'Save';
-    saveButton.style.padding = '8px 16px';
+    saveButton.style.padding = '10px 20px';
     saveButton.style.backgroundColor = '#4CAF50';
     saveButton.style.color = 'white';
     saveButton.style.border = 'none';
     saveButton.style.borderRadius = '4px';
     saveButton.style.cursor = 'pointer';
+    saveButton.style.fontWeight = 'bold';
     
     const cancelButton = document.createElement('button');
     cancelButton.textContent = 'Cancel';
-    cancelButton.style.padding = '8px 16px';
+    cancelButton.style.padding = '10px 20px';
     cancelButton.style.backgroundColor = '#f1f1f1';
     cancelButton.style.color = '#333';
     cancelButton.style.border = 'none';
@@ -413,8 +514,8 @@ function showQuickUpdateModal(item) {
     // Add modal to document
     document.body.appendChild(modalBackdrop);
     
-    // Focus the input
-    input.focus();
+    // Initialize the slider for this modal
+    initModalSlider(item.currentLevel);
     
     // Add event listeners
     cancelButton.addEventListener('click', () => {
@@ -422,7 +523,7 @@ function showQuickUpdateModal(item) {
     });
     
     saveButton.addEventListener('click', () => {
-        const newValue = parseFloat(input.value);
+        const newValue = parseFloat(hiddenInput.value);
         if (isNaN(newValue) || newValue < 0) {
             alert('Please enter a valid number');
             return;
@@ -477,13 +578,163 @@ function showQuickUpdateModal(item) {
             document.body.removeChild(modalBackdrop);
         }
     });
+}
+
+// Initialize the slider for the modal
+function initModalSlider(initialValue) {
+    // DOM elements
+    const currentValue = document.getElementById('modal-current-value');
+    const decreaseBtn = document.getElementById('modal-decrease');
+    const increaseBtn = document.getElementById('modal-increase');
+    const handle = document.getElementById('modal-handle');
+    const progress = document.getElementById('modal-progress');
+    const sliderContainer = document.querySelector('.modal-content .slider-container');
+    const ticksContainer = document.getElementById('modal-ticks');
+    const hiddenInput = document.getElementById('modal-current-level');
     
-    // Handle Enter key press
-    input.addEventListener('keyup', (event) => {
-        if (event.key === 'Enter') {
-            saveButton.click();
+    // If elements don't exist, exit
+    if (!currentValue || !sliderContainer) return;
+    
+    // Define value range and increments
+    let modalValue = initialValue || 0;
+    
+    // Generate values array with the right increments
+    const modalValues = [];
+    for (let i = 0; i <= 12; i++) {
+        modalValues.push(i * 0.25); // 0 to 3 in 0.25 increments
+    }
+    for (let i = 4; i <= 20; i++) {
+        modalValues.push(i); // 4 to 20 in increments of 1
+    }
+    
+    // Create tick marks
+    modalValues.forEach((val, index) => {
+        const percentage = index / (modalValues.length - 1) * 100;
+        const tick = document.createElement('div');
+        tick.className = 'tick';
+        if (val % 1 === 0) tick.className += ' major';
+        tick.style.left = `${percentage}%`;
+        ticksContainer.appendChild(tick);
+        
+        // Add labels for whole numbers (but not for every number to avoid crowding)
+        if (val % 1 === 0 && (val <= 3 || val % 2 === 0)) {
+            const label = document.createElement('div');
+            label.className = 'tick-label';
+            label.textContent = val;
+            label.style.left = `${percentage}%`;
+            ticksContainer.appendChild(label);
         }
     });
+    
+    // Update slider display
+    function updateModalSlider() {
+        const valueIndex = findClosestValueIndex(modalValue, modalValues);
+        const percentage = valueIndex / (modalValues.length - 1) * 100;
+        handle.style.left = `${percentage}%`;
+        progress.style.width = `${percentage}%`;
+        
+        // Format display value (show 2 decimal places for values < 3)
+        currentValue.textContent = modalValue < 3 ? modalValue.toFixed(2) : modalValue.toFixed(0);
+        
+        // Update the hidden input
+        hiddenInput.value = modalValue;
+    }
+    
+    // Find closest value index
+    function findClosestValueIndex(value, values) {
+        // Find exact match first
+        const exactIndex = values.indexOf(value);
+        if (exactIndex !== -1) return exactIndex;
+        
+        // Find closest value
+        let closestIndex = 0;
+        let minDiff = Math.abs(values[0] - value);
+        
+        for (let i = 1; i < values.length; i++) {
+            const diff = Math.abs(values[i] - value);
+            if (diff < minDiff) {
+                minDiff = diff;
+                closestIndex = i;
+            }
+        }
+        
+        return closestIndex;
+    }
+    
+    // Touch and mouse events for slider
+    let isDragging = false;
+    
+    handle.addEventListener('mousedown', () => {
+        isDragging = true;
+    });
+    handle.addEventListener('touchstart', (e) => {
+        isDragging = true;
+        e.preventDefault();
+    });
+    
+    document.addEventListener('mousemove', handleModalMove);
+    document.addEventListener('touchmove', handleModalMove, { passive: false });
+    
+    document.addEventListener('mouseup', () => {
+        isDragging = false;
+    });
+    document.addEventListener('touchend', () => {
+        isDragging = false;
+    });
+    
+    function handleModalMove(event) {
+        if (!isDragging) return;
+        
+        // Get pointer position
+        const containerRect = sliderContainer.getBoundingClientRect();
+        const clientX = event.type.includes('touch') ? 
+            event.touches[0].clientX : event.clientX;
+        let percentage = (clientX - containerRect.left) / containerRect.width;
+        
+        // Clamp percentage
+        percentage = Math.max(0, Math.min(percentage, 1));
+        
+        // Find closest value
+        const valueIndex = Math.round(percentage * (modalValues.length - 1));
+        modalValue = modalValues[valueIndex];
+        
+        updateModalSlider();
+        event.preventDefault();
+    }
+    
+    // Allow clicking/tapping anywhere on the slider track
+    sliderContainer.addEventListener('click', function(event) {
+        if (event.target === handle) return;
+        
+        const containerRect = sliderContainer.getBoundingClientRect();
+        const percentage = (event.clientX - containerRect.left) / containerRect.width;
+        
+        // Find closest value
+        const valueIndex = Math.round(percentage * (modalValues.length - 1));
+        modalValue = modalValues[valueIndex];
+        
+        updateModalSlider();
+    });
+    
+    // Plus/minus buttons
+    decreaseBtn.addEventListener('click', function() {
+        const currentIndex = findClosestValueIndex(modalValue, modalValues);
+        if (currentIndex > 0) {
+            modalValue = modalValues[currentIndex - 1];
+            updateModalSlider();
+        }
+    });
+    
+    increaseBtn.addEventListener('click', function() {
+        const currentIndex = findClosestValueIndex(modalValue, modalValues);
+        if (currentIndex < modalValues.length - 1) {
+            modalValue = modalValues[currentIndex + 1];
+            updateModalSlider();
+        }
+    });
+    
+    // Initialize with current value
+    updateModalSlider();
 }
 
 // Update statistics
@@ -501,6 +752,9 @@ function startPrepCheck() {
     dashboardSection.style.display = 'none';
     prepCheckInterface.style.display = 'block';
     showCurrentPrepItem();
+        
+    // Initialize the touch input for the current item
+    initTouchInput();
 }
 
 // Show current prep item in check interface
@@ -509,13 +763,27 @@ function showCurrentPrepItem() {
     checkProgressElement.textContent = `Item ${currentItemIndex + 1} of ${prepItems.length}`;
     checkItemNameElement.textContent = item.name;
     checkItemTargetElement.textContent = `Target: ${item.targetLevel} ${item.unit}`;
-    currentLevelInput.value = '';
+    
+    // Set the current level in the hidden input
+    currentLevelInput.value = '0';
+    
+    // Reset the touch input to show the current item's value
+    if (document.getElementById('current-value')) {
+        document.getElementById('current-value').textContent = '0';
+        // Update the slider position
+        updateSliderPosition(0);
+    }
 }
 
-// Save current item level and move to next
 function saveAndNext() {
-    if (currentLevelInput.value === '') {
-        alert('Please enter a current level');
+    // Get the value and explicitly check for undefined/null/empty
+    const currentValue = currentLevelInput.value;
+    console.log("Current value:", currentValue); // This helps debug
+
+    // Check if a value has been set (including zero)
+    // We convert to a number and check if it's a valid number including zero
+    if (currentValue === '' || isNaN(parseFloat(currentValue))) {
+        alert('Please select a current level');
         return;
     }
     
@@ -563,3 +831,185 @@ function cancelPrepCheck() {
 
 // Initialize the app when page loads
 document.addEventListener('DOMContentLoaded', initApp);
+
+// Touch-friendly numeric input functionality
+let sliderValues = [];
+let currentSliderValue = 0;
+
+// Initialize the touch-friendly input
+function initTouchInput() {
+    // DOM elements
+    const currentValue = document.getElementById('current-value');
+    const decreaseBtn = document.getElementById('decrease');
+    const increaseBtn = document.getElementById('increase');
+    const handle = document.getElementById('handle');
+    const progress = document.getElementById('progress');
+    const sliderContainer = document.querySelector('.slider-container');
+    const ticksContainer = document.getElementById('ticks');
+    
+    // If elements don't exist yet, exit
+    if(!currentValue || !sliderContainer) return;
+    
+    // Generate values array with the right increments if not already generated
+    if (sliderValues.length === 0) {
+        // Clear existing ticks first
+        ticksContainer.innerHTML = '';
+        
+        // Generate values array with the right increments
+        for (let i = 0; i <= 12; i++) {
+            sliderValues.push(i * 0.25); // 0 to 3 in 0.25 increments
+        }
+        for (let i = 4; i <= 20; i++) {
+            sliderValues.push(i); // 4 to 20 in increments of 1
+        }
+        
+        // Create tick marks
+        sliderValues.forEach((val, index) => {
+            const percentage = index / (sliderValues.length - 1) * 100;
+            const tick = document.createElement('div');
+            tick.className = 'tick';
+            if (val % 1 === 0) tick.className += ' major';
+            tick.style.left = `${percentage}%`;
+            ticksContainer.appendChild(tick);
+            
+            // Add labels for whole numbers (but not for every number to avoid crowding)
+            if (val % 1 === 0 && (val <= 3 || val % 2 === 0)) {
+                const label = document.createElement('div');
+                label.className = 'tick-label';
+                label.textContent = val;
+                label.style.left = `${percentage}%`;
+                ticksContainer.appendChild(label);
+            }
+        });
+    }
+    
+    // Set up event handlers if they haven't been set up yet
+    if (!handle.hasAttribute('data-initialized')) {
+        // Touch and mouse events for slider
+        handle.addEventListener('mousedown', startDragging);
+        handle.addEventListener('touchstart', startDragging);
+        
+        document.addEventListener('mousemove', handleMove);
+        document.addEventListener('touchmove', handleMove, { passive: false });
+        
+        document.addEventListener('mouseup', stopDragging);
+        document.addEventListener('touchend', stopDragging);
+        
+        // Allow clicking/tapping anywhere on the slider track
+        sliderContainer.addEventListener('click', handleSliderClick);
+        
+        // Plus/minus buttons
+        decreaseBtn.addEventListener('click', decreaseValue);
+        increaseBtn.addEventListener('click', increaseValue);
+        
+        // Mark as initialized to avoid setting up listeners multiple times
+        handle.setAttribute('data-initialized', 'true');
+    }
+    
+    // Initialize with value 0
+    updateSliderValue(0);
+}
+
+// Update the slider value and position
+function updateSliderValue(newValue) {
+    currentSliderValue = newValue;
+    const currentValue = document.getElementById('current-value');
+    const hiddenInput = document.getElementById('current-level-input');
+    
+    if (currentValue) {
+        // Format display value (show 2 decimal places for values < 3)
+        currentValue.textContent = currentSliderValue < 3 ? currentSliderValue.toFixed(2) : currentSliderValue.toFixed(0);
+    }
+    
+    if (hiddenInput) {
+        // Update the hidden input for form submission
+        hiddenInput.value = currentSliderValue;
+        
+        // Trigger change event on hidden input for any listeners
+        const event = new Event('change');
+        hiddenInput.dispatchEvent(event);
+    }
+    
+    updateSliderPosition(currentSliderValue);
+}
+
+// Update the slider position based on a value
+function updateSliderPosition(value) {
+    const handle = document.getElementById('handle');
+    const progress = document.getElementById('progress');
+    
+    if (!handle || !progress) return;
+    
+    const valueIndex = sliderValues.indexOf(value);
+    if (valueIndex === -1) return;
+    
+    const percentage = valueIndex / (sliderValues.length - 1) * 100;
+    handle.style.left = `${percentage}%`;
+    progress.style.width = `${percentage}%`;
+}
+
+// Event handlers for slider
+let isDragging = false;
+
+function startDragging(event) {
+    isDragging = true;
+    event.preventDefault();
+}
+
+function stopDragging() {
+    isDragging = false;
+}
+
+function handleMove(event) {
+    if (!isDragging) return;
+    
+    // Get pointer position
+    const sliderContainer = document.querySelector('.slider-container');
+    if (!sliderContainer) return;
+    
+    const containerRect = sliderContainer.getBoundingClientRect();
+    const clientX = event.type.includes('touch') ? 
+        event.touches[0].clientX : event.clientX;
+    let percentage = (clientX - containerRect.left) / containerRect.width;
+    
+    // Clamp percentage
+    percentage = Math.max(0, Math.min(percentage, 1));
+    
+    // Find closest value
+    const valueIndex = Math.round(percentage * (sliderValues.length - 1));
+    const newValue = sliderValues[valueIndex];
+    
+    updateSliderValue(newValue);
+    event.preventDefault();
+}
+
+function handleSliderClick(event) {
+    const handle = document.getElementById('handle');
+    if (event.target === handle) return;
+    
+    const sliderContainer = document.querySelector('.slider-container');
+    if (!sliderContainer) return;
+    
+    const containerRect = sliderContainer.getBoundingClientRect();
+    const percentage = (event.clientX - containerRect.left) / containerRect.width;
+    
+    // Find closest value
+    const valueIndex = Math.round(percentage * (sliderValues.length - 1));
+    const newValue = sliderValues[valueIndex];
+    
+    updateSliderValue(newValue);
+}
+
+function decreaseValue() {
+    const currentIndex = sliderValues.indexOf(currentSliderValue);
+    if (currentIndex > 0) {
+        updateSliderValue(sliderValues[currentIndex - 1]);
+    }
+}
+
+function increaseValue() {
+    const currentIndex = sliderValues.indexOf(currentSliderValue);
+    if (currentIndex < sliderValues.length - 1) {
+        updateSliderValue(sliderValues[currentIndex + 1]);
+    }
+}

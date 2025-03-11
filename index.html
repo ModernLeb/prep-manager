@@ -5,6 +5,117 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Restaurant Prep Manager</title>
     <link rel="stylesheet" href="styles.css">
+    <style>
+        /* Touch-friendly numeric input styles */
+        .touch-input-container {
+            width: 100%;
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 10px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        }
+        
+        .value-display {
+            text-align: center;
+            font-size: 28px;
+            font-weight: bold;
+            margin: 15px 0;
+            color: #333;
+        }
+        
+        .control-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .control-button {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background-color: #2c3e50;
+            color: white;
+            font-size: 22px;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .slider-container {
+            position: relative;
+            width: 100%;
+            height: 50px;
+            margin: 20px 0;
+        }
+        
+        .slider-track {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 100%;
+            height: 8px;
+            background-color: #ddd;
+            border-radius: 4px;
+        }
+        
+        .slider-progress {
+            position: absolute;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 8px;
+            background-color: #2c3e50;
+            border-radius: 4px;
+        }
+        
+        .slider-handle {
+            position: absolute;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: 36px;
+            height: 36px;
+            background-color: #2c3e50;
+            border-radius: 50%;
+            border: 3px solid white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            cursor: pointer;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        .tick-marks {
+            position: absolute;
+            width: 100%;
+            height: 30px;
+            bottom: -30px;
+        }
+        
+        .tick {
+            position: absolute;
+            height: 10px;
+            width: 2px;
+            background-color: #999;
+            transform: translateX(-50%);
+        }
+        
+        .tick.major {
+            height: 15px;
+            width: 2px;
+            background-color: #666;
+        }
+        
+        .tick-label {
+            position: absolute;
+            transform: translateX(-50%);
+            text-align: center;
+            font-size: 11px;
+            color: #666;
+            top: 15px;
+        }
+    </style>
 </head>
 <body>
     <div id="app">
@@ -12,11 +123,11 @@
         <div id="staff-selection" class="staff-selection">
             <h1 class="heading">Who are you?</h1>
             <div class="staff-grid">
-                <button class="staff-button" data-staff="Alex">Alex</button>
-                <button class="staff-button" data-staff="Maria">Maria</button>
-                <button class="staff-button" data-staff="John">John</button>
-                <button class="staff-button" data-staff="Sarah">Sarah</button>
-                <button class="staff-button" data-staff="Miguel">Miguel</button>
+                <button class="staff-button" data-staff="Serge Men">Serge Men</button>
+                <button class="staff-button" data-staff="Tatiana">Tatiana</button>
+                <button class="staff-button" data-staff="Nadine">Nadine</button>
+                <button class="staff-button" data-staff="Nicolas">Nicolas</button>
+                <button class="staff-button" data-staff="Omar">Omar</button>
             </div>
         </div>
 
@@ -77,7 +188,7 @@
                                     <th>Item</th>
                                     <th>Current</th>
                                     <th>Target</th>
-                                    <th>Last Checked</th>
+                                    <th class="sorted-by">Last Checked</th>
                                     <th>By</th>
                                 </tr>
                             </thead>
@@ -115,9 +226,30 @@
                             Target: 5 containers
                         </div>
                         
+                        <!-- Replace standard input with touch-friendly input -->
                         <div class="input-group">
                             <label class="input-label">Current level:</label>
-                            <input type="number" class="input-field" id="current-level-input" min="0" step="0.5">
+                            <!-- Hidden input to store the value (for form submission compatibility) -->
+                            <input type="hidden" id="current-level-input">
+                            
+                            <!-- Touch-friendly numeric input -->
+                            <div class="touch-input-container">
+                                <div class="value-display">
+                                    <span id="current-value">0</span>
+                                </div>
+                                
+                                <div class="control-row">
+                                    <button class="control-button" id="decrease">-</button>
+                                    <button class="control-button" id="increase">+</button>
+                                </div>
+                                
+                                <div class="slider-container">
+                                    <div class="slider-track"></div>
+                                    <div class="slider-progress" id="progress"></div>
+                                    <div class="slider-handle" id="handle"></div>
+                                    <div class="tick-marks" id="ticks"></div>
+                                </div>
+                            </div>
                         </div>
                         
                         <div class="button-group">
@@ -140,5 +272,191 @@
     </div>
     
     <script src="script.js"></script>
+    <script>
+        // Touch-friendly numeric input script
+        document.addEventListener('DOMContentLoaded', function() {
+            // This code will run after the main script.js is loaded
+            // DOM elements
+            const currentValue = document.getElementById('current-value');
+            const decreaseBtn = document.getElementById('decrease');
+            const increaseBtn = document.getElementById('increase');
+            const handle = document.getElementById('handle');
+            const progress = document.getElementById('progress');
+            const sliderContainer = document.querySelector('.slider-container');
+            const ticksContainer = document.getElementById('ticks');
+            const hiddenInput = document.getElementById('current-level-input');
+            
+            // Only initialize if we have the elements (they'll exist when prep check is visible)
+            if(!currentValue || !sliderContainer) return;
+            
+            // Define value range and increments
+            const minValue = 0;
+            const maxValue = 20;
+            let value = 0;
+            
+            // Generate values array with the right increments
+            const values = [];
+            for (let i = 0; i <= 12; i++) {
+                values.push(i * 0.25); // 0 to 3 in 0.25 increments
+            }
+            for (let i = 4; i <= 20; i++) {
+                values.push(i); // 4 to 20 in increments of 1
+            }
+            
+            // Initialize slider
+            function updateSlider() {
+                const valueIndex = values.indexOf(value);
+                const percentage = valueIndex / (values.length - 1) * 100;
+                handle.style.left = `${percentage}%`;
+                progress.style.width = `${percentage}%`;
+                
+                // Format display value (show 2 decimal places for values < 3)
+                currentValue.textContent = value < 3 ? value.toFixed(2) : value.toFixed(0);
+                
+                // Update the hidden input for form submission
+                hiddenInput.value = value;
+                
+                // Trigger change event on hidden input for any listeners
+                const event = new Event('change');
+                hiddenInput.dispatchEvent(event);
+            }
+            
+            // Create tick marks
+            function createTicks() {
+                // Clear existing ticks first
+                ticksContainer.innerHTML = '';
+                
+                values.forEach((val, index) => {
+                    const percentage = index / (values.length - 1) * 100;
+                    const tick = document.createElement('div');
+                    tick.className = 'tick';
+                    if (val % 1 === 0) tick.className += ' major';
+                    tick.style.left = `${percentage}%`;
+                    ticksContainer.appendChild(tick);
+                    
+                    // Add labels for whole numbers (but not for every number to avoid crowding)
+                    if (val % 1 === 0 && (val <= 3 || val % 2 === 0)) {
+                        const label = document.createElement('div');
+                        label.className = 'tick-label';
+                        label.textContent = val;
+                        label.style.left = `${percentage}%`;
+                        ticksContainer.appendChild(label);
+                    }
+                });
+            }
+            
+            // Handle slider interaction
+            let isDragging = false;
+            
+            function handleMove(event) {
+                if (!isDragging) return;
+                
+                // Get pointer position
+                const containerRect = sliderContainer.getBoundingClientRect();
+                const clientX = event.type.includes('touch') ? 
+                    event.touches[0].clientX : event.clientX;
+                let percentage = (clientX - containerRect.left) / containerRect.width;
+                
+                // Clamp percentage
+                percentage = Math.max(0, Math.min(percentage, 1));
+                
+                // Find closest value
+                const valueIndex = Math.round(percentage * (values.length - 1));
+                value = values[valueIndex];
+                
+                updateSlider();
+                event.preventDefault();
+            }
+            
+            // Initialize and add event listeners when prep check interface is shown
+            function initTouchInput() {
+                // Check if already initialized
+                if (ticksContainer.children.length > 0) return;
+                
+                createTicks();
+                
+                // Touch and mouse events for slider
+                handle.addEventListener('mousedown', () => isDragging = true);
+                handle.addEventListener('touchstart', () => isDragging = true);
+                
+                document.addEventListener('mousemove', handleMove);
+                document.addEventListener('touchmove', handleMove, { passive: false });
+                
+                document.addEventListener('mouseup', () => isDragging = false);
+                document.addEventListener('touchend', () => isDragging = false);
+                
+                // Allow clicking/tapping anywhere on the slider track
+                sliderContainer.addEventListener('click', function(event) {
+                    if (event.target === handle) return;
+                    
+                    const containerRect = sliderContainer.getBoundingClientRect();
+                    const percentage = (event.clientX - containerRect.left) / containerRect.width;
+                    
+                    // Find closest value
+                    const valueIndex = Math.round(percentage * (values.length - 1));
+                    value = values[valueIndex];
+                    
+                    updateSlider();
+                });
+                
+                // Plus/minus buttons
+                decreaseBtn.addEventListener('click', function() {
+                    const currentIndex = values.indexOf(value);
+                    if (currentIndex > 0) {
+                        value = values[currentIndex - 1];
+                        updateSlider();
+                    }
+                });
+                
+                increaseBtn.addEventListener('click', function() {
+                    const currentIndex = values.indexOf(value);
+                    if (currentIndex < values.length - 1) {
+                        value = values[currentIndex + 1];
+                        updateSlider();
+                    }
+                });
+                
+                // Initialize with value 0
+                value = 0;
+                updateSlider();
+            }
+            
+            // Monitor for the prep check interface becoming visible
+            const prepCheckInterface = document.getElementById('prep-check-interface');
+            
+            // Create a MutationObserver to watch for style changes
+            const observer = new MutationObserver(function(mutations) {
+                mutations.forEach(function(mutation) {
+                    if (mutation.attributeName === 'style' && 
+                        prepCheckInterface.style.display !== 'none') {
+                        // Initialize touch input when prep check interface becomes visible
+                        initTouchInput();
+                    }
+                });
+            });
+            
+            // Start observing
+            observer.observe(prepCheckInterface, { attributes: true });
+            
+            // If the prep check interface is already visible, initialize right away
+            if (prepCheckInterface.style.display !== 'none') {
+                initTouchInput();
+            }
+            
+            // Hook into the original app's start check button
+            const startCheckBtn = document.getElementById('start-check-btn');
+            if (startCheckBtn) {
+                // Add our initialization after the original click handler
+                const originalClick = startCheckBtn.onclick;
+                startCheckBtn.onclick = function(e) {
+                    if (originalClick) originalClick.call(this, e);
+                    
+                    // Initialize our touch input with a slight delay to ensure
+                    // the interface is visible
+                    setTimeout(initTouchInput, 100);
+                };
+            }
+        });
+    </script>
 </body>
 </html>
