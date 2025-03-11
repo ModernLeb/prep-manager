@@ -800,4 +800,18 @@ function initModalSlider(initialValue) {
         if (!isDragging) return;
         
         // Get pointer position
-        const containerRect
+        const containerRect = sliderContainer.getBoundingClientRect();
+        const clientX = event.type.includes('touch') ? 
+            event.touches[0].clientX : event.clientX;
+        let percentage = (clientX - containerRect.left) / containerRect.width;
+        
+        // Clamp percentage
+        percentage = Math.max(0, Math.min(percentage, 1));
+        
+        // Find closest value
+        const valueIndex = Math.round(percentage * (modalValues.length - 1));
+        modalValue = modalValues[valueIndex];
+        
+        updateModalSlider();
+        event.preventDefault();
+    }
