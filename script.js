@@ -35,54 +35,64 @@ const API_KEY = 'AIzaSyBff8Mi1zi4-r7oWmExc-zk1JeI4IDtmQs';
 const SHEET_NAME = 'Sheet1'; // Replace if your sheet name is different
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxqkQu0MyDffc4otvyjfRVEEYOKY0sQguoNxVy70OuccvvvTS0KXLC95uK6stP1agJQ/exec';
 
-// Load data from Google Sheets
+// Modified loadDataFromSheet function that returns a Promise
 function loadDataFromSheet() {
-    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`;
-    
-    fetch(url)
-        .then(response => {
-            if (!response.ok) {
-                throw new Error(`HTTP error! Status: ${response.status}`);
-            }
-            return response.json();
-        })
-        .then(data => {
-            if (!data.values || data.values.length <= 1) {
-                throw new Error('No data found in the spreadsheet');
-            }
-            
-            const rows = data.values;
-            const headers = rows[0];
-            const items = [];
-            
-            for (let i = 1; i < rows.length; i++) {
-                const item = {};
-                for (let j = 0; j < headers.length && j < rows[i].length; j++) {
-                    let value = rows[i][j] ? rows[i][j].toString().trim() : '';
-                    
-                    if (headers[j] === 'id' || headers[j] === 'currentLevel' || headers[j] === 'targetLevel') {
-                        value = parseFloat(value) || 0;
-                    }
-                    
-                    item[headers[j]] = value;
+    return new Promise((resolve, reject) => {
+        console.log('Starting to load data from Google Sheets...');
+        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`;
+        
+        fetch(url)
+            .then(response => {
+                console.log('Response status:', response.status);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
                 }
-                items.push(item);
-            }
-            
-            if (items.length > 0) {
-                prepItems = items;
-                updateInventoryTable();
-                updateTodoList();
-                updateStats();
-                console.log('Data loaded from Google Sheets successfully');
-            } else {
-                throw new Error('No items were successfully parsed');
-            }
-        })
-        .catch(error => {
-            console.error('Error loading from Google Sheets:', error);
-            loadData(); // Fall back to local data
-        });
+                return response.json();
+            })
+            .then(data => {
+                console.log('Data received from Google Sheets');
+                
+                if (!data.values || data.values.length <= 1) {
+                    throw new Error('No data found in the spreadsheet');
+                }
+                
+                const rows = data.values;
+                const headers = rows[0];
+                const items = [];
+                
+                for (let i = 1; i < rows.length; i++) {
+                    const item = {};
+                    for (let j = 0; j < headers.length && j < rows[i].length; j++) {
+                        let value = rows[i][j] ? rows[i][j].toString().trim() : '';
+                        
+                        if (headers[j] === 'id' || headers[j] === 'currentLevel' || headers[j] === 'targetLevel') {
+                            value = parseFloat(value) || 0;
+                        }
+                        
+                        item[headers[j]] = value;
+                    }
+                    items.push(item);
+                }
+                
+                if (items.length > 0) {
+                    prepItems = items;
+                    updateInventoryTable();
+                    updateTodoList();
+                    updateStats();
+                    
+                    // Save the freshly loaded items to localStorage as a backup
+                    saveData();
+                    
+                    resolve(true);
+                } else {
+                    reject(new Error('No items were successfully parsed'));
+                }
+            })
+            .catch(error => {
+                console.error('Error in Google Sheets data loading:', error);
+                reject(error);
+            });
+    });
 }
 
 // Function to save data to Google Sheet using iframe form submission
@@ -181,7 +191,7 @@ const currentLevelInput = document.getElementById('current-level-input');
 const saveNextButton = document.getElementById('save-next-btn');
 const cancelCheckButton = document.getElementById('cancel-check-btn');
 
-// Initialize the app
+// Modify your initApp function to prioritize Google Sheets data
 function initApp() {
     // Set up event listeners
     document.querySelectorAll('.staff-button').forEach(button => {
@@ -207,16 +217,22 @@ function initApp() {
     saveNextButton.addEventListener('click', saveAndNext);
     cancelCheckButton.addEventListener('click', cancelPrepCheck);
 
-    // Initialize UI
-    updateInventoryTable();
-    updateTodoList();
-    updateStats();
+    // Initialize UI with loading indicators
+    showLoadingState();
     
-    // Load saved data
-    loadData();
-    
-    // Load data from Google Sheets
-    loadDataFromSheet();
+    // Load data from Google Sheets as primary source
+    loadDataFromSheet()
+        .then(success => {
+            // If Google Sheets load succeeded, we're done
+            hideLoadingState();
+            console.log('Data loaded from Google Sheets successfully');
+        })
+        .catch(error => {
+            // Only if Google Sheets fails, fall back to localStorage
+            console.error('Error loading from Google Sheets:', error);
+            loadData();
+            hideLoadingState();
+        });
     
     // Add CSS for clickable todo items
     const style = document.createElement('style');
@@ -827,6 +843,41 @@ function cancelPrepCheck() {
     isChecking = false;
     prepCheckInterface.style.display = 'none';
     dashboardSection.style.display = 'block';
+}
+// Add loading state indicators
+function showLoadingState() {
+    // Add loading indicators to the UI
+    inventoryTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">Loading data from Google Sheets...</td></tr>';
+    todoListContainer.innerHTML = '<div style="text-align: center; padding: 20px;">Loading...</div>';
+    
+    // Disable buttons during loading
+    startCheckButton.disabled = true;
+    
+    // Add a loading message
+    const loadingMessage = document.createElement('div');
+    loadingMessage.id = 'loading-message';
+    loadingMessage.style.position = 'fixed';
+    loadingMessage.style.bottom = '20px';
+    loadingMessage.style.right = '20px';
+    loadingMessage.style.padding = '10px';
+    loadingMessage.style.backgroundColor = '#3b82f6';
+    loadingMessage.style.color = 'white';
+    loadingMessage.style.borderRadius = '5px';
+    loadingMessage.style.zIndex = '1000';
+    loadingMessage.textContent = 'Loading data from Google Sheets...';
+    document.body.appendChild(loadingMessage);
+}
+
+// Remove loading state indicators
+function hideLoadingState() {
+    // Re-enable buttons
+    startCheckButton.disabled = false;
+    
+    // Remove loading message
+    const loadingMessage = document.getElementById('loading-message');
+    if (loadingMessage) {
+        loadingMessage.remove();
+    }
 }
 
 // Initialize the app when page loads
