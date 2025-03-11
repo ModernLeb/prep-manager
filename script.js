@@ -1,91 +1,3 @@
-// Add these at the top of your script.js file
-let googleAuthToken = '';
-let googleUser = null;
-
-// Initialize auth state from localStorage if available
-try {
-    const savedAuth = localStorage.getItem('googleAuthToken');
-    if (savedAuth) {
-        googleAuthToken = savedAuth;
-    }
-} catch (e) {
-    console.error('Error loading auth from localStorage:', e);
-}
-
-// Replace your handleCredentialResponse function with this:
-function handleCredentialResponse(response) {
-    console.log('Google Auth response received');
-    
-    // Store the credential
-    googleAuthToken = response.credential;
-    
-    // Save to localStorage for persistence
-    try {
-        localStorage.setItem('googleAuthToken', googleAuthToken);
-    } catch (e) {
-        console.error('Error saving auth to localStorage:', e);
-    }
-    
-    // Parse the JWT to get user info
-    try {
-        const payload = JSON.parse(atob(googleAuthToken.split('.')[1]));
-        googleUser = {
-            name: payload.name,
-            email: payload.email,
-            picture: payload.picture
-        };
-        console.log('Authenticated as:', googleUser.name);
-    } catch (e) {
-        console.error('Error parsing auth token:', e);
-    }
-    
-    // Check if the DOM elements exist before trying to modify them
-    const authContainer = document.getElementById('google-auth-container');
-    const appContainer = document.getElementById('app');
-    
-    if (authContainer && appContainer) {
-        // Hide auth container and show the app
-        authContainer.style.display = 'none';
-        appContainer.style.display = 'block';
-        
-        // Initialize the application now that we're authenticated
-        initApp();
-    } else {
-        console.error('DOM elements not found. Auth container or app container is missing.');
-        // Add a fallback to reload the page if elements aren't found
-        setTimeout(() => {
-            window.location.reload();
-        }, 500);
-    }
-}
-
-// And replace your DOMContentLoaded event listener with this:
-document.addEventListener('DOMContentLoaded', function() {
-    // Get references to necessary DOM elements
-    const authContainer = document.getElementById('google-auth-container');
-    const appContainer = document.getElementById('app');
-    
-    // Ensure the elements exist before proceeding
-    if (!authContainer || !appContainer) {
-        console.error('Required DOM elements not found!');
-        return;
-    }
-    
-    // Check if we already have auth
-    if (googleAuthToken) {
-        // Already authenticated, hide auth container and initialize
-        authContainer.style.display = 'none';
-        appContainer.style.display = 'block';
-        
-        // Initialize the application now that we're authenticated
-        initApp();
-    } else {
-        // Need authentication, hide app and show auth container
-        appContainer.style.display = 'none';
-        authContainer.style.display = 'flex';
-    }
-});
-
 // Sample initial data
 const initialPrepItems = [
     { id: 1, name: 'Chopped Onions', currentLevel: 2, targetLevel: 5, unit: 'containers', lastCheckedBy: 'Alex', lastCheckedTime: '2025-03-09 08:30' },
@@ -123,89 +35,59 @@ const API_KEY = 'AIzaSyBff8Mi1zi4-r7oWmExc-zk1JeI4IDtmQs';
 const SHEET_NAME = 'Sheet1'; // Replace if your sheet name is different
 const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxqkQu0MyDffc4otvyjfRVEEYOKY0sQguoNxVy70OuccvvvTS0KXLC95uK6stP1agJQ/exec';
 
-// Modified loadDataFromSheet function to use auth token
+// Load data from Google Sheets
 function loadDataFromSheet() {
-    return new Promise((resolve, reject) => {
-        console.log('Starting to load data from Google Sheets...');
-        
-        // Check if we have auth
-        if (!googleAuthToken) {
-            console.error('No authentication token available');
-            reject(new Error('Authentication required'));
-            return;
-        }
-        
-        const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`;
-        
-        // Set up headers with authentication
-        const headers = {
-            'Authorization': `Bearer ${googleAuthToken}`
-        };
-        
-        fetch(url, { headers })
-            .then(response => {
-                console.log('Response status:', response.status);
-                if (!response.ok) {
-                    throw new Error(`HTTP error! Status: ${response.status}`);
-                }
-                return response.json();
-            })
-            .then(data => {
-                console.log('Data received from Google Sheets');
-                
-                if (!data.values || data.values.length <= 1) {
-                    throw new Error('No data found in the spreadsheet');
-                }
-                
-                const rows = data.values;
-                const headers = rows[0];
-                const items = [];
-                
-                for (let i = 1; i < rows.length; i++) {
-                    const item = {};
-                    for (let j = 0; j < headers.length && j < rows[i].length; j++) {
-                        let value = rows[i][j] ? rows[i][j].toString().trim() : '';
-                        
-                        if (headers[j] === 'id' || headers[j] === 'currentLevel' || headers[j] === 'targetLevel') {
-                            value = parseFloat(value) || 0;
-                        }
-                        
-                        item[headers[j]] = value;
+    const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`;
+    
+    fetch(url)
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! Status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (!data.values || data.values.length <= 1) {
+                throw new Error('No data found in the spreadsheet');
+            }
+            
+            const rows = data.values;
+            const headers = rows[0];
+            const items = [];
+            
+            for (let i = 1; i < rows.length; i++) {
+                const item = {};
+                for (let j = 0; j < headers.length && j < rows[i].length; j++) {
+                    let value = rows[i][j] ? rows[i][j].toString().trim() : '';
+                    
+                    if (headers[j] === 'id' || headers[j] === 'currentLevel' || headers[j] === 'targetLevel') {
+                        value = parseFloat(value) || 0;
                     }
-                    items.push(item);
-                }
-                
-                if (items.length > 0) {
-                    prepItems = items;
-                    updateInventoryTable();
-                    updateTodoList();
-                    updateStats();
                     
-                    // Save the freshly loaded items to localStorage as a backup
-                    saveData();
-                    
-                    resolve(true);
-                } else {
-                    reject(new Error('No items were successfully parsed'));
+                    item[headers[j]] = value;
                 }
-            })
-            .catch(error => {
-                console.error('Error in Google Sheets data loading:', error);
-                reject(error);
-            });
-    });
+                items.push(item);
+            }
+            
+            if (items.length > 0) {
+                prepItems = items;
+                updateInventoryTable();
+                updateTodoList();
+                updateStats();
+                console.log('Data loaded from Google Sheets successfully');
+            } else {
+                throw new Error('No items were successfully parsed');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading from Google Sheets:', error);
+            loadData(); // Fall back to local data
+        });
 }
 
-// Updated saveToGoogleSheet function to use auth token
+// Function to save data to Google Sheet using iframe form submission
 function saveToGoogleSheet() {
     console.log('Saving data to Google Sheet...');
-    
-    // Check if we have auth
-    if (!googleAuthToken) {
-        console.error('No authentication token available');
-        alert('Authentication required to save data. Please sign in again.');
-        return;
-    }
     
     // Display a message to the user
     const saveMessage = document.createElement('div');
@@ -242,13 +124,6 @@ function saveToGoogleSheet() {
     input.name = 'data';
     input.value = JSON.stringify(prepItems);
     form.appendChild(input);
-    
-    // Add the auth token as a hidden input
-    const authInput = document.createElement('input');
-    authInput.type = 'hidden';
-    authInput.name = 'auth';
-    authInput.value = googleAuthToken;
-    form.appendChild(authInput);
     
     // Add the form to the document
     document.body.appendChild(form);
@@ -306,7 +181,7 @@ const currentLevelInput = document.getElementById('current-level-input');
 const saveNextButton = document.getElementById('save-next-btn');
 const cancelCheckButton = document.getElementById('cancel-check-btn');
 
-// Modify your initApp function to prioritize Google Sheets data
+// Initialize the app
 function initApp() {
     // Set up event listeners
     document.querySelectorAll('.staff-button').forEach(button => {
@@ -332,22 +207,16 @@ function initApp() {
     saveNextButton.addEventListener('click', saveAndNext);
     cancelCheckButton.addEventListener('click', cancelPrepCheck);
 
-    // Initialize UI with loading indicators
-    showLoadingState();
+    // Initialize UI
+    updateInventoryTable();
+    updateTodoList();
+    updateStats();
     
-    // Load data from Google Sheets as primary source
-    loadDataFromSheet()
-        .then(success => {
-            // If Google Sheets load succeeded, we're done
-            hideLoadingState();
-            console.log('Data loaded from Google Sheets successfully');
-        })
-        .catch(error => {
-            // Only if Google Sheets fails, fall back to localStorage
-            console.error('Error loading from Google Sheets:', error);
-            loadData();
-            hideLoadingState();
-        });
+    // Load saved data
+    loadData();
+    
+    // Load data from Google Sheets
+    loadDataFromSheet();
     
     // Add CSS for clickable todo items
     const style = document.createElement('style');
@@ -959,41 +828,9 @@ function cancelPrepCheck() {
     prepCheckInterface.style.display = 'none';
     dashboardSection.style.display = 'block';
 }
-// Add loading state indicators
-function showLoadingState() {
-    // Add loading indicators to the UI
-    inventoryTableBody.innerHTML = '<tr><td colspan="5" style="text-align: center; padding: 20px;">Loading data from Google Sheets...</td></tr>';
-    todoListContainer.innerHTML = '<div style="text-align: center; padding: 20px;">Loading...</div>';
-    
-    // Disable buttons during loading
-    startCheckButton.disabled = true;
-    
-    // Add a loading message
-    const loadingMessage = document.createElement('div');
-    loadingMessage.id = 'loading-message';
-    loadingMessage.style.position = 'fixed';
-    loadingMessage.style.bottom = '20px';
-    loadingMessage.style.right = '20px';
-    loadingMessage.style.padding = '10px';
-    loadingMessage.style.backgroundColor = '#3b82f6';
-    loadingMessage.style.color = 'white';
-    loadingMessage.style.borderRadius = '5px';
-    loadingMessage.style.zIndex = '1000';
-    loadingMessage.textContent = 'Loading data from Google Sheets...';
-    document.body.appendChild(loadingMessage);
-}
 
-// Remove loading state indicators
-function hideLoadingState() {
-    // Re-enable buttons
-    startCheckButton.disabled = false;
-    
-    // Remove loading message
-    const loadingMessage = document.getElementById('loading-message');
-    if (loadingMessage) {
-        loadingMessage.remove();
-    }
-}
+// Initialize the app when page loads
+document.addEventListener('DOMContentLoaded', initApp);
 
 // Touch-friendly numeric input functionality
 let sliderValues = [];
@@ -1176,18 +1013,3 @@ function increaseValue() {
         updateSliderValue(sliderValues[currentIndex + 1]);
     }
 }
-
-// Replace your existing DOMContentLoaded event listener with this:
-document.addEventListener('DOMContentLoaded', function() {
-    // Check if we already have auth
-    if (googleAuthToken) {
-        // Already authenticated, hide auth container and initialize
-        document.getElementById('google-auth-container').style.display = 'none';
-        document.getElementById('app').style.display = 'block';
-        initApp();
-    } else {
-        // Need authentication, hide app and show auth container
-        document.getElementById('app').style.display = 'none';
-        document.getElementById('google-auth-container').style.display = 'flex';
-    }
-});
