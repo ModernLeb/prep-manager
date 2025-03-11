@@ -33,9 +33,10 @@ function loadData() {
 const SHEET_ID = '1brT1NRzBC1Q6pY5CzIpgRDBk7_Vja_t7OwD3kU9dTuM';
 const API_KEY = 'AIzaSyBff8Mi1zi4-r7oWmExc-zk1JeI4IDtmQs';
 const SHEET_NAME = 'Sheet1'; // Replace if your sheet name is different
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxqkQu0MyDffc4otvyjfRVEEYOKY0sQguoNxVy70OuccvvvTS0KXLC95uK6stP1agJQ/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbytRtxdlH4ri8RMC3SZmo_ezdfiIwjoUWcQpXBoTubEbf2BzEvuLSeR2I6QSoWg7RrW/exec';
 
-// Load data from Google Sheets
+// Fix for loadDataFromSheet function
+// Replace the current version with this corrected one
 function loadDataFromSheet() {
     const url = `https://sheets.googleapis.com/v4/spreadsheets/${SHEET_ID}/values/${SHEET_NAME}?key=${API_KEY}`;
     
@@ -85,80 +86,87 @@ function loadDataFromSheet() {
         });
 }
 
-// Function to save data to Google Sheet using iframe form submission
-function saveToGoogleSheet() {
-    console.log('Saving data to Google Sheet...');
+function saveAndNext() {
+    // Get the value and explicitly check for undefined/null/empty
+    const currentValue = currentLevelInput.value;
+    console.log("Current value:", currentValue); // This helps debug
+
+    // Check if a value has been set (including zero)
+    // We convert to a number and check if it's a valid number including zero
+    if (currentValue === '' || isNaN(parseFloat(currentValue))) {
+        alert('Please select a current level');
+        return;
+    }
     
-    // Display a message to the user
-    const saveMessage = document.createElement('div');
-    saveMessage.textContent = 'Saving to Google Sheet...';
-    saveMessage.style.position = 'fixed';
-    saveMessage.style.bottom = '20px';
-    saveMessage.style.right = '20px';
-    saveMessage.style.padding = '10px';
-    saveMessage.style.backgroundColor = '#333';
-    saveMessage.style.color = 'white';
-    saveMessage.style.borderRadius = '5px';
-    saveMessage.style.zIndex = '1000';
-    document.body.appendChild(saveMessage);
+    // Update prep item with new level
+    prepItems[currentItemIndex].currentLevel = parseFloat(currentLevelInput.value);
+    prepItems[currentItemIndex].lastCheckedBy = currentStaff;
+    prepItems[currentItemIndex].lastCheckedTime = new Date().toLocaleString();
+
+    // Save data to localStorage
+    saveData();
     
-    // Generate a unique name for the iframe
-    const iframeName = 'google-sheet-target-' + Date.now();
+    // Save data to Google Sheet
+    saveItemToGoogleSheet(prepItems[currentItemIndex]);
     
-    // Create a hidden iframe
-    const iframe = document.createElement('iframe');
-    iframe.name = iframeName;
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
+    // Update the to-do list in real-time
+    updateTodoList();
     
-    // Create a form that targets the iframe
-    const form = document.createElement('form');
-    form.action = SCRIPT_URL;
-    form.method = 'POST';
-    form.target = iframeName; // This makes the form submit to the iframe
-    form.style.display = 'none';
-    
-    // Add the data as a hidden input
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'data';
-    input.value = JSON.stringify(prepItems);
-    form.appendChild(input);
-    
-    // Add the form to the document
-    document.body.appendChild(form);
-    
-    // When the iframe loads, it means the form submission is complete
-    iframe.onload = function() {
-        console.log('Form submission complete');
-        saveMessage.textContent = 'Data saved to Google Sheet!';
-        saveMessage.style.backgroundColor = '#4CAF50';
-        
-        // Clean up
-        setTimeout(() => {
-            saveMessage.remove();
-            iframe.remove();
-            form.remove();
-        }, 3000);
-    };
-    
-    // Submit the form
-    form.submit();
-    
-    // Handle potential errors with a fallback
-    setTimeout(() => {
-        if (document.body.contains(saveMessage)) {
-            saveMessage.textContent = 'Sheet update completed';
-            saveMessage.style.backgroundColor = '#4CAF50';
-            
-            setTimeout(() => {
-                if (document.body.contains(saveMessage)) saveMessage.remove();
-                if (document.body.contains(form)) form.remove();
-                if (document.body.contains(iframe)) iframe.remove();
-            }, 2000);
-        }
-    }, 5000);
+    // Move to next item or complete check
+    if (currentItemIndex < prepItems.length - 1) {
+        currentItemIndex++;
+        showCurrentPrepItem();
+    } else {
+        completePrepCheck();
+    }
 }
+
+// Update statistics
+function updateStats() {
+    totalItemsElement.textContent = prepItems.length;
+    
+    const itemsNeeded = prepItems.filter(item => item.currentLevel < item.targetLevel * 0.5).length;
+    itemsNeededElement.textContent = itemsNeeded;
+}
+
+// Start prep check process
+function startPrepCheck() {
+    isChecking = true;
+    currentItemIndex = 0;
+    dashboardSection.style.display = 'none';
+    prepCheckInterface.style.display = 'block';
+    showCurrentPrepItem();
+        
+    // Initialize the touch input for the current item
+    initTouchInput();
+}
+
+// Complete prep check
+function completePrepCheck() {
+    isChecking = false;
+    prepCheckInterface.style.display = 'none';
+    dashboardSection.style.display = 'block';
+    
+    // Update UI with new data
+    updateInventoryTable();
+    updateTodoList();
+    updateStats();
+    
+    // Save final data to Google Sheet
+    saveToGoogleSheet();
+}
+
+// Cancel prep check
+function cancelPrepCheck() {
+    isChecking = false;
+    prepCheckInterface.style.display = 'none';
+    dashboardSection.style.display = 'block';
+}
+
+// Initialize the app when page loads
+document.addEventListener('DOMContentLoaded', initApp);
+
+
 
 // DOM elements
 const staffSelectionScreen = document.getElementById('staff-selection');
@@ -403,7 +411,339 @@ function updateTodoList() {
     });
 }
 
-// New function to show a quick update modal with slider
+// Create a reusable slider component
+function createTouchSlider(options) {
+  const {
+    containerId, // Container element ID or element
+    valueDisplayId, // Element to display current value
+    handleId, // Slider handle element
+    progressId, // Progress bar element
+    ticksId, // Ticks container element
+    decreaseId, // Decrease button ID
+    increaseId, // Increase button ID
+    hiddenInputId, // Hidden input to store value
+    initialValue = 0, // Starting value
+    minValue = 0, // Minimum value
+    maxValue = 20 // Maximum value
+  } = options;
+  
+  // DOM elements
+  const container = typeof containerId === 'string' ? document.getElementById(containerId) : containerId;
+  const valueDisplay = document.getElementById(valueDisplayId);
+  const handle = document.getElementById(handleId);
+  const progress = document.getElementById(progressId);
+  const ticksContainer = document.getElementById(ticksId);
+  const decreaseBtn = document.getElementById(decreaseId);
+  const increaseBtn = document.getElementById(increaseId);
+  const hiddenInput = document.getElementById(hiddenInputId);
+  
+  if (!container || !valueDisplay || !handle || !progress || !ticksContainer) {
+    console.error('Missing required elements for slider');
+    return null;
+  }
+  
+  // Generate values array with the right increments
+  const values = [];
+  for (let i = 0; i <= 12; i++) {
+    values.push(i * 0.25); // 0 to 3 in 0.25 increments
+  }
+  for (let i = 4; i <= maxValue; i++) {
+    values.push(i); // 4 to 20 in increments of 1
+  }
+  
+  // Instance-specific state
+  let currentValue = findClosestValue(initialValue, values);
+  let isDragging = false;
+  
+  // Find closest value in values array
+  function findClosestValue(value, valueArray) {
+    // Find exact match first
+    const exactIndex = valueArray.indexOf(value);
+    if (exactIndex !== -1) return value;
+    
+    // Find closest value
+    let closest = valueArray[0];
+    let closestDiff = Math.abs(value - closest);
+    
+    for (const v of valueArray) {
+      const diff = Math.abs(value - v);
+      if (diff < closestDiff) {
+        closestDiff = diff;
+        closest = v;
+      }
+    }
+    return closest;
+  }
+  
+  // Update the slider display
+  function updateSlider() {
+    const valueIndex = values.indexOf(currentValue);
+    const percentage = valueIndex / (values.length - 1) * 100;
+    
+    handle.style.left = `${percentage}%`;
+    progress.style.width = `${percentage}%`;
+    
+    // Format display value (show 2 decimal places for values < 3)
+    valueDisplay.textContent = currentValue < 3 ? currentValue.toFixed(2) : currentValue.toFixed(0);
+    
+    // Update hidden input if provided
+    if (hiddenInput) {
+      hiddenInput.value = currentValue;
+      // Trigger change event
+      const event = new Event('change');
+      hiddenInput.dispatchEvent(event);
+    }
+  }
+  
+  // Create tick marks
+  function createTicks() {
+    // Clear existing ticks
+    ticksContainer.innerHTML = '';
+    
+    values.forEach((val, index) => {
+      const percentage = index / (values.length - 1) * 100;
+      
+      // Create tick mark
+      const tick = document.createElement('div');
+      tick.className = val % 1 === 0 ? 'tick major' : 'tick';
+      tick.style.left = `${percentage}%`;
+      ticksContainer.appendChild(tick);
+      
+      // Add labels for whole numbers (but not for every number to avoid crowding)
+      if (val % 1 === 0 && (val <= 3 || val % 2 === 0)) {
+        const label = document.createElement('div');
+        label.className = 'tick-label';
+        label.textContent = val;
+        label.style.left = `${percentage}%`;
+        ticksContainer.appendChild(label);
+      }
+    });
+  }
+  
+  // Event handlers
+  function startDragging(e) {
+    isDragging = true;
+    e.preventDefault();
+  }
+  
+  function stopDragging() {
+    isDragging = false;
+  }
+  
+  function handleMove(event) {
+    if (!isDragging) return;
+    
+    const containerRect = container.getBoundingClientRect();
+    const clientX = event.type.includes('touch') ? 
+      event.touches[0].clientX : event.clientX;
+    let percentage = (clientX - containerRect.left) / containerRect.width;
+    
+    // Clamp percentage
+    percentage = Math.max(0, Math.min(percentage, 1));
+    
+    // Find closest value
+    const valueIndex = Math.round(percentage * (values.length - 1));
+    currentValue = values[valueIndex];
+    
+    updateSlider();
+    event.preventDefault();
+  }
+  
+  function handleClick(event) {
+    if (event.target === handle) return;
+    
+    const containerRect = container.getBoundingClientRect();
+    const percentage = (event.clientX - containerRect.left) / containerRect.width;
+    
+    // Find closest value
+    const valueIndex = Math.round(percentage * (values.length - 1));
+    currentValue = values[valueIndex];
+    
+    updateSlider();
+  }
+  
+  function decreaseValue() {
+    const currentIndex = values.indexOf(currentValue);
+    if (currentIndex > 0) {
+      currentValue = values[currentIndex - 1];
+      updateSlider();
+    }
+  }
+  
+  function increaseValue() {
+    const currentIndex = values.indexOf(currentValue);
+    if (currentIndex < values.length - 1) {
+      currentValue = values[currentIndex + 1];
+      updateSlider();
+    }
+  }
+  
+  // Set up event handlers
+  handle.addEventListener('mousedown', startDragging);
+  handle.addEventListener('touchstart', startDragging);
+  
+  document.addEventListener('mousemove', handleMove);
+  document.addEventListener('touchmove', handleMove, { passive: false });
+  
+  document.addEventListener('mouseup', stopDragging);
+  document.addEventListener('touchend', stopDragging);
+  
+  container.addEventListener('click', handleClick);
+  
+  if (decreaseBtn) decreaseBtn.addEventListener('click', decreaseValue);
+  if (increaseBtn) increaseBtn.addEventListener('click', increaseValue);
+  
+  // Initialize
+  createTicks();
+  updateSlider();
+  
+  // Return an API for external control
+  return {
+    setValue: function(value) {
+      currentValue = findClosestValue(value, values);
+      updateSlider();
+    },
+    getValue: function() {
+      return currentValue;
+    },
+    destroy: function() {
+      // Remove event listeners
+      handle.removeEventListener('mousedown', startDragging);
+      handle.removeEventListener('touchstart', startDragging);
+      document.removeEventListener('mousemove', handleMove);
+      document.removeEventListener('touchmove', handleMove);
+      document.removeEventListener('mouseup', stopDragging);
+      document.removeEventListener('touchend', stopDragging);
+      container.removeEventListener('click', handleClick);
+      if (decreaseBtn) decreaseBtn.removeEventListener('click', decreaseValue);
+      if (increaseBtn) increaseBtn.removeEventListener('click', increaseValue);
+    }
+  };
+}
+
+// Global variable to store the slider instance for the main prep check
+let prepCheckSlider;
+
+// New implementation of initTouchInput using the reusable component
+function initTouchInput() {
+    // Check if the necessary elements exist
+    if (document.getElementById('current-value') && document.getElementById('handle')) {
+        // Initialize the main prep check slider if not already done
+        if (!prepCheckSlider) {
+            prepCheckSlider = createTouchSlider({
+                containerId: document.querySelector('.slider-container'),
+                valueDisplayId: 'current-value',
+                handleId: 'handle',
+                progressId: 'progress',
+                ticksId: 'ticks',
+                decreaseId: 'decrease',
+                increaseId: 'increase',
+                hiddenInputId: 'current-level-input',
+                initialValue: 0
+            });
+        }
+    }
+}
+
+// Updated show current prep item function
+function showCurrentPrepItem() {
+    const item = prepItems[currentItemIndex];
+    checkProgressElement.textContent = `Item ${currentItemIndex + 1} of ${prepItems.length}`;
+    checkItemNameElement.textContent = item.name;
+    checkItemTargetElement.textContent = `Target: ${item.targetLevel} ${item.unit}`;
+    
+    // Reset the slider to 0 using the slider API
+    if (prepCheckSlider) {
+        prepCheckSlider.setValue(0);
+    } else {
+        // Fallback if slider isn't initialized yet
+        currentLevelInput.value = '0';
+    }
+}
+
+// New function to save a single item to Google Sheet
+function saveItemToGoogleSheet(item) {
+    console.log('Saving item to Google Sheet:', item.name);
+    
+    // Display a message to the user
+    const saveMessage = document.createElement('div');
+    saveMessage.textContent = `Updating ${item.name}...`;
+    saveMessage.style.position = 'fixed';
+    saveMessage.style.bottom = '20px';
+    saveMessage.style.right = '20px';
+    saveMessage.style.padding = '10px';
+    saveMessage.style.backgroundColor = '#333';
+    saveMessage.style.color = 'white';
+    saveMessage.style.borderRadius = '5px';
+    saveMessage.style.zIndex = '1000';
+    document.body.appendChild(saveMessage);
+    
+    // Generate a unique name for the iframe
+    const iframeName = 'google-sheet-target-' + Date.now();
+    
+    // Create a hidden iframe
+    const iframe = document.createElement('iframe');
+    iframe.name = iframeName;
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+    
+    // Create a form that targets the iframe
+    const form = document.createElement('form');
+    form.action = SCRIPT_URL;
+    form.method = 'POST';
+    form.target = iframeName; // This makes the form submit to the iframe
+    form.style.display = 'none';
+    
+    // Add the data as a hidden input
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'data';
+    input.value = JSON.stringify(item);  // Just send this one item
+    form.appendChild(input);
+    
+    // Add the mode parameter to specify this is a single item update
+    const modeInput = document.createElement('input');
+    modeInput.type = 'hidden';
+    modeInput.name = 'mode';
+    modeInput.value = 'single';
+    form.appendChild(modeInput);
+    
+    // Add the form to the document
+    document.body.appendChild(form);
+    
+    // When the iframe loads, it means the form submission is complete
+    iframe.onload = function() {
+        console.log('Item update complete');
+        saveMessage.textContent = `${item.name} saved to Google Sheet!`;
+        saveMessage.style.backgroundColor = '#4CAF50';
+        
+        // Clean up
+        setTimeout(() => {
+            saveMessage.remove();
+            iframe.remove();
+            form.remove();
+        }, 3000);
+    };
+    
+    // Submit the form
+    form.submit();
+    
+    // Handle potential errors with a fallback
+    setTimeout(() => {
+        if (document.body.contains(saveMessage)) {
+            saveMessage.textContent = 'Update completed';
+            saveMessage.style.backgroundColor = '#4CAF50';
+            
+            setTimeout(() => {
+                if (document.body.contains(saveMessage)) saveMessage.remove();
+                if (document.body.contains(form)) form.remove();
+                if (document.body.contains(iframe)) iframe.remove();
+            }, 2000);
+        }
+    }, 5000);
+}
+
+// Updated modal function to use the reusable slider
 function showQuickUpdateModal(item) {
     // Create modal backdrop
     const modalBackdrop = document.createElement('div');
@@ -514,13 +854,36 @@ function showQuickUpdateModal(item) {
     // Add modal to document
     document.body.appendChild(modalBackdrop);
     
+    // Create a variable to hold the slider instance
+    let modalSlider;
+    
     // Initialize the slider for this modal
-    initModalSlider(item.currentLevel);
+    // This needs to happen after the elements are added to the DOM
+    setTimeout(() => {
+        modalSlider = createTouchSlider({
+            containerId: modalContent.querySelector('.slider-container'),
+            valueDisplayId: 'modal-current-value',
+            handleId: 'modal-handle',
+            progressId: 'modal-progress',
+            ticksId: 'modal-ticks',
+            decreaseId: 'modal-decrease',
+            increaseId: 'modal-increase',
+            hiddenInputId: 'modal-current-level',
+            initialValue: item.currentLevel
+        });
+    }, 0);
+    
+    // Function to close modal and clean up
+    function closeModal() {
+        // Destroy slider to clean up event listeners
+        if (modalSlider) {
+            modalSlider.destroy();
+        }
+        document.body.removeChild(modalBackdrop);
+    }
     
     // Add event listeners
-    cancelButton.addEventListener('click', () => {
-        document.body.removeChild(modalBackdrop);
-    });
+    cancelButton.addEventListener('click', closeModal);
     
     saveButton.addEventListener('click', () => {
         const newValue = parseFloat(hiddenInput.value);
@@ -540,8 +903,8 @@ function showQuickUpdateModal(item) {
             // Save to localStorage
             saveData();
             
-            // Save to Google Sheet
-            saveToGoogleSheet();
+            // Save only this item to Google Sheet (instead of saveToGoogleSheet())
+            saveItemToGoogleSheet(prepItems[itemIndex]);
             
             // Update UI
             updateInventoryTable();
@@ -569,447 +932,13 @@ function showQuickUpdateModal(item) {
         }
         
         // Close modal
-        document.body.removeChild(modalBackdrop);
+        closeModal();
     });
     
     // Close modal if backdrop is clicked
     modalBackdrop.addEventListener('click', (event) => {
         if (event.target === modalBackdrop) {
-            document.body.removeChild(modalBackdrop);
+            closeModal();
         }
     });
-}
-
-// Initialize the slider for the modal
-function initModalSlider(initialValue) {
-    // DOM elements
-    const currentValue = document.getElementById('modal-current-value');
-    const decreaseBtn = document.getElementById('modal-decrease');
-    const increaseBtn = document.getElementById('modal-increase');
-    const handle = document.getElementById('modal-handle');
-    const progress = document.getElementById('modal-progress');
-    const sliderContainer = document.querySelector('.modal-content .slider-container');
-    const ticksContainer = document.getElementById('modal-ticks');
-    const hiddenInput = document.getElementById('modal-current-level');
-    
-    // If elements don't exist, exit
-    if (!currentValue || !sliderContainer) return;
-    
-    // Define value range and increments
-    let modalValue = initialValue || 0;
-    
-    // Generate values array with the right increments
-    const modalValues = [];
-    for (let i = 0; i <= 12; i++) {
-        modalValues.push(i * 0.25); // 0 to 3 in 0.25 increments
-    }
-    for (let i = 4; i <= 20; i++) {
-        modalValues.push(i); // 4 to 20 in increments of 1
-    }
-    
-    // Create tick marks
-    modalValues.forEach((val, index) => {
-        const percentage = index / (modalValues.length - 1) * 100;
-        const tick = document.createElement('div');
-        tick.className = 'tick';
-        if (val % 1 === 0) tick.className += ' major';
-        tick.style.left = `${percentage}%`;
-        ticksContainer.appendChild(tick);
-        
-        // Add labels for whole numbers (but not for every number to avoid crowding)
-        if (val % 1 === 0 && (val <= 3 || val % 2 === 0)) {
-            const label = document.createElement('div');
-            label.className = 'tick-label';
-            label.textContent = val;
-            label.style.left = `${percentage}%`;
-            ticksContainer.appendChild(label);
-        }
-    });
-    
-    // Update slider display
-    function updateModalSlider() {
-        const valueIndex = findClosestValueIndex(modalValue, modalValues);
-        const percentage = valueIndex / (modalValues.length - 1) * 100;
-        handle.style.left = `${percentage}%`;
-        progress.style.width = `${percentage}%`;
-        
-        // Format display value (show 2 decimal places for values < 3)
-        currentValue.textContent = modalValue < 3 ? modalValue.toFixed(2) : modalValue.toFixed(0);
-        
-        // Update the hidden input
-        hiddenInput.value = modalValue;
-    }
-    
-    // Find closest value index
-    function findClosestValueIndex(value, values) {
-        // Find exact match first
-        const exactIndex = values.indexOf(value);
-        if (exactIndex !== -1) return exactIndex;
-        
-        // Find closest value
-        let closestIndex = 0;
-        let minDiff = Math.abs(values[0] - value);
-        
-        for (let i = 1; i < values.length; i++) {
-            const diff = Math.abs(values[i] - value);
-            if (diff < minDiff) {
-                minDiff = diff;
-                closestIndex = i;
-            }
-        }
-        
-        return closestIndex;
-    }
-    
-    // Touch and mouse events for slider
-    let isDragging = false;
-    
-    handle.addEventListener('mousedown', () => {
-        isDragging = true;
-    });
-    handle.addEventListener('touchstart', (e) => {
-        isDragging = true;
-        e.preventDefault();
-    });
-    
-    document.addEventListener('mousemove', handleModalMove);
-    document.addEventListener('touchmove', handleModalMove, { passive: false });
-    
-    document.addEventListener('mouseup', () => {
-        isDragging = false;
-    });
-    document.addEventListener('touchend', () => {
-        isDragging = false;
-    });
-    
-    function handleModalMove(event) {
-        if (!isDragging) return;
-        
-        // Get pointer position
-        const containerRect = sliderContainer.getBoundingClientRect();
-        const clientX = event.type.includes('touch') ? 
-            event.touches[0].clientX : event.clientX;
-        let percentage = (clientX - containerRect.left) / containerRect.width;
-        
-        // Clamp percentage
-        percentage = Math.max(0, Math.min(percentage, 1));
-        
-        // Find closest value
-        const valueIndex = Math.round(percentage * (modalValues.length - 1));
-        modalValue = modalValues[valueIndex];
-        
-        updateModalSlider();
-        event.preventDefault();
-    }
-    
-    // Allow clicking/tapping anywhere on the slider track
-    sliderContainer.addEventListener('click', function(event) {
-        if (event.target === handle) return;
-        
-        const containerRect = sliderContainer.getBoundingClientRect();
-        const percentage = (event.clientX - containerRect.left) / containerRect.width;
-        
-        // Find closest value
-        const valueIndex = Math.round(percentage * (modalValues.length - 1));
-        modalValue = modalValues[valueIndex];
-        
-        updateModalSlider();
-    });
-    
-    // Plus/minus buttons
-    decreaseBtn.addEventListener('click', function() {
-        const currentIndex = findClosestValueIndex(modalValue, modalValues);
-        if (currentIndex > 0) {
-            modalValue = modalValues[currentIndex - 1];
-            updateModalSlider();
-        }
-    });
-    
-    increaseBtn.addEventListener('click', function() {
-        const currentIndex = findClosestValueIndex(modalValue, modalValues);
-        if (currentIndex < modalValues.length - 1) {
-            modalValue = modalValues[currentIndex + 1];
-            updateModalSlider();
-        }
-    });
-    
-    // Initialize with current value
-    updateModalSlider();
-}
-
-// Update statistics
-function updateStats() {
-    totalItemsElement.textContent = prepItems.length;
-    
-    const itemsNeeded = prepItems.filter(item => item.currentLevel < item.targetLevel * 0.5).length;
-    itemsNeededElement.textContent = itemsNeeded;
-}
-
-// Start prep check process
-function startPrepCheck() {
-    isChecking = true;
-    currentItemIndex = 0;
-    dashboardSection.style.display = 'none';
-    prepCheckInterface.style.display = 'block';
-    showCurrentPrepItem();
-        
-    // Initialize the touch input for the current item
-    initTouchInput();
-}
-
-// Show current prep item in check interface
-function showCurrentPrepItem() {
-    const item = prepItems[currentItemIndex];
-    checkProgressElement.textContent = `Item ${currentItemIndex + 1} of ${prepItems.length}`;
-    checkItemNameElement.textContent = item.name;
-    checkItemTargetElement.textContent = `Target: ${item.targetLevel} ${item.unit}`;
-    
-    // Set the current level in the hidden input
-    currentLevelInput.value = '0';
-    
-    // Reset the touch input to show the current item's value
-    if (document.getElementById('current-value')) {
-        document.getElementById('current-value').textContent = '0';
-        // Update the slider position
-        updateSliderPosition(0);
-    }
-}
-
-function saveAndNext() {
-    // Get the value and explicitly check for undefined/null/empty
-    const currentValue = currentLevelInput.value;
-    console.log("Current value:", currentValue); // This helps debug
-
-    // Check if a value has been set (including zero)
-    // We convert to a number and check if it's a valid number including zero
-    if (currentValue === '' || isNaN(parseFloat(currentValue))) {
-        alert('Please select a current level');
-        return;
-    }
-    
-    // Update prep item with new level
-    prepItems[currentItemIndex].currentLevel = parseFloat(currentLevelInput.value);
-    prepItems[currentItemIndex].lastCheckedBy = currentStaff;
-    prepItems[currentItemIndex].lastCheckedTime = new Date().toLocaleString();
-
-    // Save data to localStorage
-    saveData();
-    
-    // Save data to Google Sheet
-    saveToGoogleSheet();
-    
-    // Move to next item or complete check
-    if (currentItemIndex < prepItems.length - 1) {
-        currentItemIndex++;
-        showCurrentPrepItem();
-    } else {
-        completePrepCheck();
-    }
-}
-
-// Complete prep check
-function completePrepCheck() {
-    isChecking = false;
-    prepCheckInterface.style.display = 'none';
-    dashboardSection.style.display = 'block';
-    
-    // Update UI with new data
-    updateInventoryTable();
-    updateTodoList();
-    updateStats();
-    
-    // Save final data to Google Sheet
-    saveToGoogleSheet();
-}
-
-// Cancel prep check
-function cancelPrepCheck() {
-    isChecking = false;
-    prepCheckInterface.style.display = 'none';
-    dashboardSection.style.display = 'block';
-}
-
-// Initialize the app when page loads
-document.addEventListener('DOMContentLoaded', initApp);
-
-// Touch-friendly numeric input functionality
-let sliderValues = [];
-let currentSliderValue = 0;
-
-// Initialize the touch-friendly input
-function initTouchInput() {
-    // DOM elements
-    const currentValue = document.getElementById('current-value');
-    const decreaseBtn = document.getElementById('decrease');
-    const increaseBtn = document.getElementById('increase');
-    const handle = document.getElementById('handle');
-    const progress = document.getElementById('progress');
-    const sliderContainer = document.querySelector('.slider-container');
-    const ticksContainer = document.getElementById('ticks');
-    
-    // If elements don't exist yet, exit
-    if(!currentValue || !sliderContainer) return;
-    
-    // Generate values array with the right increments if not already generated
-    if (sliderValues.length === 0) {
-        // Clear existing ticks first
-        ticksContainer.innerHTML = '';
-        
-        // Generate values array with the right increments
-        for (let i = 0; i <= 12; i++) {
-            sliderValues.push(i * 0.25); // 0 to 3 in 0.25 increments
-        }
-        for (let i = 4; i <= 20; i++) {
-            sliderValues.push(i); // 4 to 20 in increments of 1
-        }
-        
-        // Create tick marks
-        sliderValues.forEach((val, index) => {
-            const percentage = index / (sliderValues.length - 1) * 100;
-            const tick = document.createElement('div');
-            tick.className = 'tick';
-            if (val % 1 === 0) tick.className += ' major';
-            tick.style.left = `${percentage}%`;
-            ticksContainer.appendChild(tick);
-            
-            // Add labels for whole numbers (but not for every number to avoid crowding)
-            if (val % 1 === 0 && (val <= 3 || val % 2 === 0)) {
-                const label = document.createElement('div');
-                label.className = 'tick-label';
-                label.textContent = val;
-                label.style.left = `${percentage}%`;
-                ticksContainer.appendChild(label);
-            }
-        });
-    }
-    
-    // Set up event handlers if they haven't been set up yet
-    if (!handle.hasAttribute('data-initialized')) {
-        // Touch and mouse events for slider
-        handle.addEventListener('mousedown', startDragging);
-        handle.addEventListener('touchstart', startDragging);
-        
-        document.addEventListener('mousemove', handleMove);
-        document.addEventListener('touchmove', handleMove, { passive: false });
-        
-        document.addEventListener('mouseup', stopDragging);
-        document.addEventListener('touchend', stopDragging);
-        
-        // Allow clicking/tapping anywhere on the slider track
-        sliderContainer.addEventListener('click', handleSliderClick);
-        
-        // Plus/minus buttons
-        decreaseBtn.addEventListener('click', decreaseValue);
-        increaseBtn.addEventListener('click', increaseValue);
-        
-        // Mark as initialized to avoid setting up listeners multiple times
-        handle.setAttribute('data-initialized', 'true');
-    }
-    
-    // Initialize with value 0
-    updateSliderValue(0);
-}
-
-// Update the slider value and position
-function updateSliderValue(newValue) {
-    currentSliderValue = newValue;
-    const currentValue = document.getElementById('current-value');
-    const hiddenInput = document.getElementById('current-level-input');
-    
-    if (currentValue) {
-        // Format display value (show 2 decimal places for values < 3)
-        currentValue.textContent = currentSliderValue < 3 ? currentSliderValue.toFixed(2) : currentSliderValue.toFixed(0);
-    }
-    
-    if (hiddenInput) {
-        // Update the hidden input for form submission
-        hiddenInput.value = currentSliderValue;
-        
-        // Trigger change event on hidden input for any listeners
-        const event = new Event('change');
-        hiddenInput.dispatchEvent(event);
-    }
-    
-    updateSliderPosition(currentSliderValue);
-}
-
-// Update the slider position based on a value
-function updateSliderPosition(value) {
-    const handle = document.getElementById('handle');
-    const progress = document.getElementById('progress');
-    
-    if (!handle || !progress) return;
-    
-    const valueIndex = sliderValues.indexOf(value);
-    if (valueIndex === -1) return;
-    
-    const percentage = valueIndex / (sliderValues.length - 1) * 100;
-    handle.style.left = `${percentage}%`;
-    progress.style.width = `${percentage}%`;
-}
-
-// Event handlers for slider
-let isDragging = false;
-
-function startDragging(event) {
-    isDragging = true;
-    event.preventDefault();
-}
-
-function stopDragging() {
-    isDragging = false;
-}
-
-function handleMove(event) {
-    if (!isDragging) return;
-    
-    // Get pointer position
-    const sliderContainer = document.querySelector('.slider-container');
-    if (!sliderContainer) return;
-    
-    const containerRect = sliderContainer.getBoundingClientRect();
-    const clientX = event.type.includes('touch') ? 
-        event.touches[0].clientX : event.clientX;
-    let percentage = (clientX - containerRect.left) / containerRect.width;
-    
-    // Clamp percentage
-    percentage = Math.max(0, Math.min(percentage, 1));
-    
-    // Find closest value
-    const valueIndex = Math.round(percentage * (sliderValues.length - 1));
-    const newValue = sliderValues[valueIndex];
-    
-    updateSliderValue(newValue);
-    event.preventDefault();
-}
-
-function handleSliderClick(event) {
-    const handle = document.getElementById('handle');
-    if (event.target === handle) return;
-    
-    const sliderContainer = document.querySelector('.slider-container');
-    if (!sliderContainer) return;
-    
-    const containerRect = sliderContainer.getBoundingClientRect();
-    const percentage = (event.clientX - containerRect.left) / containerRect.width;
-    
-    // Find closest value
-    const valueIndex = Math.round(percentage * (sliderValues.length - 1));
-    const newValue = sliderValues[valueIndex];
-    
-    updateSliderValue(newValue);
-}
-
-function decreaseValue() {
-    const currentIndex = sliderValues.indexOf(currentSliderValue);
-    if (currentIndex > 0) {
-        updateSliderValue(sliderValues[currentIndex - 1]);
-    }
-}
-
-function increaseValue() {
-    const currentIndex = sliderValues.indexOf(currentSliderValue);
-    if (currentIndex < sliderValues.length - 1) {
-        updateSliderValue(sliderValues[currentIndex + 1]);
-    }
-}
+}   
