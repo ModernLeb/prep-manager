@@ -33,7 +33,7 @@ function loadData() {
 const SHEET_ID = '1brT1NRzBC1Q6pY5CzIpgRDBk7_Vja_t7OwD3kU9dTuM';
 const API_KEY = 'AIzaSyBff8Mi1zi4-r7oWmExc-zk1JeI4IDtmQs';
 const SHEET_NAME = 'Sheet1'; // Replace if your sheet name is different
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbytRtxdlH4ri8RMC3SZmo_ezdfiIwjoUWcQpXBoTubEbf2BzEvuLSeR2I6QSoWg7RrW/exec';
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxdGQDoQ_AqaY2JP6c-Z5UHlRLsivoIx0dVGpjd9GyN1R4bkW67pr3l86jNkeiQDfwR/exec';
 
 // Fix for loadDataFromSheet function
 // Replace the current version with this corrected one
@@ -665,7 +665,7 @@ function showCurrentPrepItem() {
 function saveItemToGoogleSheet(item) {
     console.log('Saving item to Google Sheet:', item.name);
     
-    // Display a message to the user
+    // Create a feedback message for the user
     const saveMessage = document.createElement('div');
     saveMessage.textContent = `Updating ${item.name}...`;
     saveMessage.style.position = 'fixed';
@@ -678,69 +678,45 @@ function saveItemToGoogleSheet(item) {
     saveMessage.style.zIndex = '1000';
     document.body.appendChild(saveMessage);
     
-    // Generate a unique name for the iframe
-    const iframeName = 'google-sheet-target-' + Date.now();
-    
-    // Create a hidden iframe
-    const iframe = document.createElement('iframe');
-    iframe.name = iframeName;
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-    
-    // Create a form that targets the iframe
-    const form = document.createElement('form');
-    form.action = SCRIPT_URL;
-    form.method = 'POST';
-    form.target = iframeName; // This makes the form submit to the iframe
-    form.style.display = 'none';
-    
-    // Add the data as a hidden input
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'data';
-    input.value = JSON.stringify(item);  // Just send this one item
-    form.appendChild(input);
-    
-    // Add the mode parameter to specify this is a single item update
-    const modeInput = document.createElement('input');
-    modeInput.type = 'hidden';
-    modeInput.name = 'mode';
-    modeInput.value = 'single';
-    form.appendChild(modeInput);
-    
-    // Add the form to the document
-    document.body.appendChild(form);
-    
-    // When the iframe loads, it means the form submission is complete
-    iframe.onload = function() {
-        console.log('Item update complete');
+    // Make a direct fetch call to the Google Apps Script web app
+    fetch(SCRIPT_URL, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            data: item,
+            mode: 'single'
+        }),
+        // This is important for handling cookies/credentials
+        credentials: 'include'
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.text();
+    })
+    .then(result => {
+        console.log('Update result:', result);
         saveMessage.textContent = `${item.name} saved to Google Sheet!`;
         saveMessage.style.backgroundColor = '#4CAF50';
         
-        // Clean up
+        // Clean up after 3 seconds
         setTimeout(() => {
             saveMessage.remove();
-            iframe.remove();
-            form.remove();
         }, 3000);
-    };
-    
-    // Submit the form
-    form.submit();
-    
-    // Handle potential errors with a fallback
-    setTimeout(() => {
-        if (document.body.contains(saveMessage)) {
-            saveMessage.textContent = 'Update completed';
-            saveMessage.style.backgroundColor = '#4CAF50';
-            
-            setTimeout(() => {
-                if (document.body.contains(saveMessage)) saveMessage.remove();
-                if (document.body.contains(form)) form.remove();
-                if (document.body.contains(iframe)) iframe.remove();
-            }, 2000);
-        }
-    }, 5000);
+    })
+    .catch(error => {
+        console.error('Error saving to Google Sheet:', error);
+        saveMessage.textContent = `Error: ${error.message}`;
+        saveMessage.style.backgroundColor = '#f44336';
+        
+        // Clean up after 5 seconds
+        setTimeout(() => {
+            saveMessage.remove();
+        }, 5000);
+    });
 }
 
 // Updated modal function to use the reusable slider
